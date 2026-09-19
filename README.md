@@ -46,22 +46,7 @@ Dữ liệu được xử lý theo kiến trúc **Medallion: Bronze → Silver �
 
 ## 4. Kiến trúc hệ thống
 
-```mermaid
-flowchart TD
-    SRC["Nguồn tuyển dụng, giáo dục và thống kê"] --> COL["Python: thu thập dữ liệu"]
-    COL --> B["Bronze: dữ liệu tiếp nhận trên MinIO"]
-    B --> S["Silver: Spark chuẩn hóa thành bảng Delta"]
-    S --> K["SBERT và phân cụm kỹ năng"]
-    K --> H["Kiểm duyệt và ánh xạ kỹ năng"]
-    S --> G["Gold: fact, dim và dữ liệu tổng hợp"]
-    H --> G
-    G --> P["PostgreSQL: dữ liệu phục vụ truy vấn"]
-    P --> BI["Superset: dashboard phân tích"]
-    A["Airflow: điều phối pipeline"] -.-> COL
-    A -.-> S
-    A -.-> G
-    A -.-> P
-```
+<img width="1671" height="941" alt="Desing" src="https://github.com/user-attachments/assets/57abdad1-3384-404a-af83-6a5689188109" />
 
 MinIO lưu trữ các đối tượng dữ liệu; Delta Lake cung cấp lớp quản lý bảng trên dữ liệu được lưu trữ; Spark thực hiện xử lý. PostgreSQL là lớp phục vụ truy vấn, nhận các bảng cần thiết từ Gold để Superset khai thác. Docker được dùng để đóng gói các dịch vụ.
 
