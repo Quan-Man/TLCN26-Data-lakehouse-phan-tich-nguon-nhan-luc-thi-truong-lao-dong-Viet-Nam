@@ -478,7 +478,6 @@ async def crawl_job_detail(
 async def crawl_job(
     card,
     detail_page,
-    page_number,
     category_name,
     crawled_at
 ):
@@ -609,8 +608,6 @@ async def crawl_job(
             ),
 
             "industry": category_name,
-
-            "page": page_number,
 
             "source_name": "CareerViet",
 

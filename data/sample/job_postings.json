@@ -1,0 +1,5 @@
+{"job_id":"DEMO001","title":"Data Engineer","location":"Ho Chi Minh","salary_million_vnd":20}
+{"job_id":"DEMO002","title":"Data Analyst","location":"Ha Noi","salary_million_vnd":25}
+{"job_id":"DEMO003","title":"Data Scientist","location":"Ho Chi Minh","salary_million_vnd":30}
+{"job_id":"DEMO001","title":"Data Engineer","location":"Ho Chi Minh","salary_million_vnd":20}
+{"job_id":"DEMO004","title":"Invalid sample","location":"","salary_million_vnd":null}
