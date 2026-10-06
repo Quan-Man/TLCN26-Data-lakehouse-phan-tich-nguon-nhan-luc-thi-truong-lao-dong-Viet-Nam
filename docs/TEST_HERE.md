@@ -35,7 +35,7 @@ docker compose exec airflow-scheduler python /opt/airflow/jobs/simple_pipeline.p
 Sau khi pipeline chạy xong, kiểm tra kết quả:
 
 ```bash
-docker compose exec airflow-scheduler python /opt/airflow/jobs/verify_simple_pipeline.py --run-dir /opt/airflow/logs/simple_pipeline/20261006T043348Z_0ffa2491
+docker compose exec airflow-scheduler python /opt/airflow/jobs/verify_simple_pipeline.py --run-dir /opt/airflow/logs/simple_pipeline/20261006T074055Z_79e6ba4b
 ```
 
 > Thay `20261006T043348Z_0ffa2491` bằng `run_id` được sinh ra từ lần chạy pipeline của bạn.
