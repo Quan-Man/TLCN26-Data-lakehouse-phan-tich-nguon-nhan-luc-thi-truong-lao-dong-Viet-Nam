@@ -35,9 +35,9 @@ x-airflow: &airflow
     PYTHONPATH: /opt/airflow/jobs
 
   volumes:
-    - ./dags:/opt/airflow/dags:ro
-    - ./jobs:/opt/airflow/jobs:ro
-    - ./sample_data:/opt/airflow/sample_data:ro
+    - ./dags:/opt/airflow/dags
+    - ./jobs:/opt/airflow/jobs
+    - ./data:/opt/airflow/data
     - airflow-logs:/opt/airflow/logs
 
   depends_on: &airflow-deps
@@ -68,11 +68,6 @@ x-superset: &superset
 
 
 services:
-
-  # ==========================================================
-  # PostgreSQL
-  # ==========================================================
-
   postgres:
     container_name: 26tlcn-lakehouse-postgres
     image: postgres:16.8-bookworm
@@ -103,11 +98,6 @@ services:
       retries: 20
       start_period: 30s
 
-
-  # ==========================================================
-  # MinIO
-  # ==========================================================
-
   minio:
     container_name: 26tlcn-lakehouse-minio
     image: quay.io/minio/minio:latest
@@ -129,11 +119,6 @@ services:
 
     volumes:
       - minio-data:/data
-
-
-  # ==========================================================
-  # MinIO Init
-  # ==========================================================
 
   minio-init:
     container_name: 26tlcn-lakehouse-minio-init
@@ -171,11 +156,6 @@ services:
 
     restart: "no"
 
-
-  # ==========================================================
-  # Airflow Init
-  # ==========================================================
-
   airflow-init:
     container_name: 26tlcn-lakehouse-airflow-init
     <<: *airflow
@@ -194,11 +174,6 @@ services:
       - /opt/airflow/bootstrap.sh
 
     restart: "no"
-
-
-  # ==========================================================
-  # Airflow Webserver
-  # ==========================================================
 
   airflow-webserver:
     container_name: 26tlcn-lakehouse-airflow-webserver
@@ -223,11 +198,6 @@ services:
       retries: 10
       start_period: 90s
 
-
-  # ==========================================================
-  # Airflow Scheduler
-  # ==========================================================
-
   airflow-scheduler:
     container_name: 26tlcn-lakehouse-airflow-scheduler
     <<: *airflow
@@ -248,11 +218,6 @@ services:
       retries: 10
       start_period: 90s
 
-
-  # ==========================================================
-  # Spark Job
-  # ==========================================================
-
   spark-job:
     container_name: 26tlcn-lakehouse-spark-job
     <<: *airflow
@@ -272,11 +237,6 @@ services:
 
     restart: "no"
 
-
-  # ==========================================================
-  # Superset Init
-  # ==========================================================
-
   superset-init:
     container_name: 26tlcn-lakehouse-superset-init
     <<: *superset
@@ -290,11 +250,6 @@ services:
       - /app/bootstrap.sh
 
     restart: "no"
-
-
-  # ==========================================================
-  # Superset
-  # ==========================================================
 
   superset:
     container_name: 26tlcn-lakehouse-superset
@@ -327,11 +282,6 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
-
-
-# ==========================================================
-# Volumes
-# ==========================================================
 
 volumes:
   postgres-data:
