@@ -1,0 +1,935 @@
+{
+  "config_version": "1.0.0",
+  "dataset": "jobs",
+  "schema_file": "configs/schemas/job_schema.json",
+  "notice": "File mô tả mapping và quy tắc.",
+  "ingestion": {
+    "input_table": "source.raw_job",
+    "record_path": "$[*]",
+    "spark_json_options": {
+      "multiLine": true,
+      "mode": "FAILFAST"
+    },
+    "invalid_json_policy": "Dừng/đưa file vào quarantine; ghi lỗi. Nếu sửa có kiểm soát, tạo bản sao hợp lệ, giữ file gốc và log thay đổi.",
+    "unknown_fields_policy": "Giữ toàn bộ object trong raw_payload_json và file nguồn gốc trước khi project schema.",
+    "bronze_write_mode": "Append theo batch; retry MERGE/no-op với khóa (ingestion_batch_id, raw_id)."
+  },
+  "stages": {
+    "source_to_bronze": {
+      "input": "source.raw_job",
+      "output": "bronze.job_postings",
+      "columns": {
+        "raw_id": {
+          "operation": "derive",
+          "rule": "raw_identity"
+        },
+        "category": {
+          "operation": "copy",
+          "source": "category_name"
+        },
+        "job_id": {
+          "operation": "copy",
+          "source": "job_id"
+        },
+        "job_title_raw": {
+          "operation": "copy",
+          "source": "job_title"
+        },
+        "company_raw": {
+          "operation": "copy",
+          "source": "company"
+        },
+        "salary_raw": {
+          "operation": "copy",
+          "source": "salary"
+        },
+        "location_raw": {
+          "operation": "copy",
+          "source": "location"
+        },
+        "expiration_date_raw": {
+          "operation": "copy",
+          "source": "expiration_date"
+        },
+        "posted_date_raw": {
+          "operation": "constant",
+          "value": null
+        },
+        "job_url": {
+          "operation": "copy",
+          "source": "job_url"
+        },
+        "experience_raw": {
+          "operation": "copy",
+          "source": "experience"
+        },
+        "education_raw": {
+          "operation": "copy",
+          "source": "education"
+        },
+        "skills_raw": {
+          "operation": "constant",
+          "value": null
+        },
+        "description_raw": {
+          "operation": "copy",
+          "source": "description"
+        },
+        "requirements_raw": {
+          "operation": "copy",
+          "source": "requirements"
+        },
+        "source_name": {
+          "operation": "copy",
+          "source": "source"
+        },
+        "crawled_at": {
+          "operation": "copy",
+          "source": "crawled_at"
+        },
+        "ingestion_batch_id": {
+          "operation": "context",
+          "source": "ingestion_batch_id"
+        },
+        "source_file": {
+          "operation": "context",
+          "source": "source_file"
+        },
+        "requirement_items_raw": {
+          "operation": "copy",
+          "source": "requirement_items"
+        },
+        "job_level_raw": {
+          "operation": "copy",
+          "source": "position_level"
+        },
+        "vacancies_raw": {
+          "operation": "copy",
+          "source": "quantity"
+        },
+        "employment_type_raw": {
+          "operation": "copy",
+          "source": "work_type"
+        },
+        "updated_at_raw": {
+          "operation": "copy",
+          "source": "updated_at"
+        },
+        "industry_raw": {
+          "operation": "copy",
+          "source": "industry"
+        },
+        "field_raw": {
+          "operation": "copy",
+          "source": "field"
+        },
+        "work_location_raw": {
+          "operation": "copy",
+          "source": "work_location"
+        },
+        "working_time_raw": {
+          "operation": "copy",
+          "source": "working_time"
+        },
+        "raw_payload_json": {
+          "operation": "derive",
+          "rule": "preserve_payload"
+        },
+        "source_file_sha256": {
+          "operation": "context",
+          "source": "source_file_sha256"
+        },
+        "source_record_index": {
+          "operation": "context",
+          "source": "source_record_index"
+        },
+        "ingested_at": {
+          "operation": "context",
+          "source": "ingested_at"
+        }
+      }
+    },
+    "bronze_to_silver": {
+      "input": "bronze.job_postings",
+      "processing_order": [
+        "validate_identity",
+        "deduplicate_jobs",
+        "resolve_companies_and_locations",
+        "build_job_postings",
+        "extract_job_skills",
+        "validate_foreign_keys",
+        "write_tables"
+      ],
+      "outputs": {
+        "silver.job_postings": {
+          "columns": {
+            "job_id": {
+              "operation": "derive",
+              "source": [
+                "source_name",
+                "job_id",
+                "job_url"
+              ],
+              "rule": "job_identity"
+            },
+            "source_name": {
+              "operation": "transform",
+              "source": "source_name",
+              "rule": "normalize_source"
+            },
+            "source_job_id": {
+              "operation": "transform",
+              "source": "job_id",
+              "rule": "clean_text"
+            },
+            "job_title": {
+              "operation": "transform",
+              "source": "job_title_raw",
+              "rule": "clean_text"
+            },
+            "occupation_id": {
+              "operation": "lookup",
+              "source": [
+                "field_raw",
+                "category",
+                "job_title_raw"
+              ],
+              "rule": "occupation_lookup"
+            },
+            "company_id": {
+              "operation": "derive",
+              "source": [
+                "source_name",
+                "company_raw"
+              ],
+              "rule": "company_identity"
+            },
+            "primary_location_id": {
+              "operation": "derive",
+              "source": [
+                "work_location_raw.province",
+                "location_raw"
+              ],
+              "rule": "location_resolution"
+            },
+            "salary_min_vnd": {
+              "operation": "derive",
+              "source": "salary_raw",
+              "rule": "salary_parse"
+            },
+            "salary_max_vnd": {
+              "operation": "derive",
+              "source": "salary_raw",
+              "rule": "salary_parse"
+            },
+            "salary_midpoint_vnd": {
+              "operation": "derive",
+              "source": "salary_raw",
+              "rule": "salary_parse"
+            },
+            "experience_min_years": {
+              "operation": "derive",
+              "source": "experience_raw",
+              "rule": "experience_parse"
+            },
+            "experience_max_years": {
+              "operation": "derive",
+              "source": "experience_raw",
+              "rule": "experience_parse"
+            },
+            "education_level": {
+              "operation": "lookup",
+              "source": "education_raw",
+              "rule": "education_lookup"
+            },
+            "job_level": {
+              "operation": "lookup",
+              "source": "job_level_raw",
+              "rule": "job_level_lookup"
+            },
+            "employment_type": {
+              "operation": "lookup",
+              "source": "employment_type_raw",
+              "rule": "employment_type_lookup"
+            },
+            "working_model": {
+              "operation": "constant",
+              "value": null
+            },
+            "job_description": {
+              "operation": "transform",
+              "source": "description_raw",
+              "rule": "clean_multiline"
+            },
+            "job_requirements": {
+              "operation": "transform",
+              "source": "requirements_raw",
+              "rule": "clean_multiline"
+            },
+            "posted_date": {
+              "operation": "transform",
+              "source": "posted_date_raw",
+              "rule": "date_parse"
+            },
+            "expiration_date": {
+              "operation": "transform",
+              "source": "expiration_date_raw",
+              "rule": "date_parse"
+            },
+            "source_url": {
+              "operation": "transform",
+              "source": "job_url",
+              "rule": "clean_text"
+            },
+            "record_status": {
+              "operation": "derive",
+              "source": [
+                "expiration_date_raw",
+                "crawled_at"
+              ],
+              "rule": "record_status"
+            },
+            "crawled_at": {
+              "operation": "transform",
+              "source": "crawled_at",
+              "rule": "timestamp_parse"
+            },
+            "processed_at": {
+              "operation": "context",
+              "source": "processed_at"
+            },
+            "source_updated_date": {
+              "operation": "transform",
+              "source": "updated_at_raw",
+              "rule": "updated_date_parse"
+            },
+            "salary_type": {
+              "operation": "derive",
+              "source": "salary_raw",
+              "rule": "salary_parse"
+            },
+            "salary_currency": {
+              "operation": "derive",
+              "source": "salary_raw",
+              "rule": "salary_parse"
+            },
+            "experience_type": {
+              "operation": "derive",
+              "source": "experience_raw",
+              "rule": "experience_parse"
+            },
+            "category_name": {
+              "operation": "transform",
+              "source": "category",
+              "rule": "clean_text"
+            },
+            "source_field_labels": {
+              "operation": "transform",
+              "source": "field_raw",
+              "rule": "clean_string_array"
+            },
+            "source_requirement_items": {
+              "operation": "transform",
+              "source": "requirement_items_raw",
+              "rule": "clean_string_array"
+            },
+            "raw_id": {
+              "operation": "copy",
+              "source": "raw_id"
+            },
+            "ingestion_batch_id": {
+              "operation": "copy",
+              "source": "ingestion_batch_id"
+            },
+            "source_file": {
+              "operation": "copy",
+              "source": "source_file"
+            },
+            "data_quality_flags": {
+              "operation": "derive",
+              "rule": "quality_flags"
+            }
+          },
+          "write_mode": "MERGE by job_id; cập nhật chỉ khi version mới hơn theo deduplication."
+        },
+        "silver.companies": {
+          "columns": {
+            "company_id": {
+              "operation": "derive",
+              "source": [
+                "source_name",
+                "company_raw"
+              ],
+              "rule": "company_identity"
+            },
+            "company_name": {
+              "operation": "transform",
+              "source": "company_raw",
+              "rule": "clean_text"
+            }
+          },
+          "row_filter": "company_raw không trống; một dòng mỗi company_id sau gộp.",
+          "write_mode": "MERGE by company_id; không ghi đè thuộc tính đã xác minh bằng NULL/tên tạm thời."
+        },
+        "silver.job_skills": {
+          "columns": {
+            "job_id": {
+              "operation": "derive",
+              "source": [
+                "source_name",
+                "job_id",
+                "job_url"
+              ],
+              "rule": "job_identity"
+            },
+            "skill_id": {
+              "operation": "extract",
+              "source": [
+                "skills_raw",
+                "requirements_raw",
+                "description_raw"
+              ],
+              "rule": "skill_extraction"
+            },
+            "raw_skill_text": {
+              "operation": "extract",
+              "source": [
+                "skills_raw",
+                "requirements_raw",
+                "description_raw"
+              ],
+              "rule": "skill_extraction"
+            },
+            "is_required": {
+              "operation": "constant",
+              "value": null
+            },
+            "required_level": {
+              "operation": "constant",
+              "value": null
+            },
+            "years_required": {
+              "operation": "constant",
+              "value": null
+            },
+            "extraction_method": {
+              "operation": "extract",
+              "rule": "skill_extraction"
+            },
+            "confidence_score": {
+              "operation": "constant",
+              "value": null
+            }
+          }
+       },
+        "silver.job_locations": {
+          "columns": {
+            "job_id": {
+              "operation": "derive",
+              "source": [
+                "source_name",
+                "job_id",
+                "job_url"
+              ],
+              "rule": "job_identity"
+            },
+            "location_id": {
+              "operation": "derive",
+              "source": [
+                "work_location_raw.province",
+                "location_raw"
+              ],
+              "rule": "location_resolution"
+            },
+            "location_name": {
+              "operation": "derive",
+              "source": [
+                "work_location_raw.province",
+                "location_raw"
+              ],
+              "rule": "location_resolution"
+            }
+          },
+          "row_filter": "Chỉ tin hợp lệ và location_id đã được tra thành công.",
+          "write_mode": "Thay tập địa phương cho job_id có phiên bản mới; giữ job_postings.primary_location_id đồng bộ."
+        }
+      }
+    }
+  },
+  "rules": {
+    "canonical_hash": {
+      "algorithm": "SHA-256 hex lowercase",
+      "serialization": "UTF-8 json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(\",\", \":\"), allow_nan=False). Timestamp: UTC ISO8601 kết thúc Z, luôn 6 chữ số phần giây. Date: YYYY-MM-DD. Decimal: string theo scale của schema. NULL giữ JSON null; array giữ thứ tự."
+    },
+    "raw_identity": {
+      "inputs": [
+        "context.source_file_sha256",
+        "context.source_record_index"
+      ],
+      "formula": "canonical_hash([source_file_sha256, source_record_index])"
+    },
+    "preserve_payload": {
+      "instruction": "Serialize đầy đủ object nguồn trước mọi chuẩn hóa/project schema. JSON serialize có thể đổi whitespace nên luôn giữ bytes file gốc riêng."
+    },
+    "clean_text": {
+      "steps": [
+        "NULL giữ NULL.",
+        "Unicode NFC; trim; gộp chuỗi whitespace thành một dấu cách.",
+        "Chuỗi rỗng sau trim -> NULL.",
+        "Giữ nguyên dấu tiếng Việt, chữ hoa/thường và dấu câu. Không coi Không yêu cầu/Thỏa thuận là NULL một cách toàn cục."
+      ]
+    },
+    "clean_multiline": {
+      "steps": [
+        "Unicode NFC; CRLF/CR -> LF.",
+        "Trim từng dòng; gộp space/tab nhưng giữ ngắt dòng.",
+        "Chuỗi rỗng -> NULL; không xóa nội dung hoặc dính các gạch đầu dòng."
+      ]
+    },
+    "clean_string_array": {
+      "instruction": "NULL giữ NULL; [] giữ []; áp clean_text từng phần tử; bỏ phần tử NULL; bỏ trùng chính xác và giữ thứ tự đầu tiên."
+    },
+    "normalize_source": {
+      "steps": [
+        "clean_text rồi casefold.",
+        "timviec365 hoặc timviec365.vn -> timviec365.",
+        "Giữ nhãn nguồn khác không trống; nguồn thiếu -> quarantine, không tự mặc định timviec365."
+      ]
+    },
+    "job_identity": {
+      "steps": [
+        "Chuẩn hóa source_name; clean_text job_id thành source_job_id.",
+        "Nếu source_job_id có: canonical_hash([\"job\", source_name, \"source_id\", source_job_id]).",
+        "Nếu thiếu source_job_id nhưng job_url hợp lệ: canonical_hash([\"job\", source_name, \"url\", normalized_url]); gắn SOURCE_JOB_ID_MISSING.",
+        "normalized_url: trim; lowercase scheme/hostname; bỏ fragment; giữ path và query để tránh gộp nhầm URL.",
+        "Thiếu cả mã tin và URL hoặc thiếu nguồn -> quarantine.",
+        "Mã tin khác nguồn không gộp. Tin trùng cross-source cần bài toán đối sánh riêng."
+      ]
+    },
+    "normalize_company_name": {
+      "steps": [
+        "clean_text rồi casefold; giữ dấu tiếng Việt, dấu câu và cụm TNHH/Cổ phần.",
+        "Không xóa hậu tố pháp lý; không fuzzy merge tự động."
+      ]
+    },
+    "company_identity": {
+      "steps": [
+        "Nếu company_raw trống: NULL, không tạo companies, gắn COMPANY_MISSING.",
+        "Ngược lại canonical_hash([\"company\", normalize_source(source_name), normalize_company_name(company_raw)]).",
+        "identity_status=PROVISIONAL_NAME; tên giống có thể là hai công ty khác nhau. Khi có mã số thuế/ID công ty cần bảng đối soát, không tuyên bố đây là khóa pháp nhân chính thức."
+      ]
+    },
+    "salary_parse": {
+      "input": "salary_raw only; không tự chọn số trong title/description/benefits.",
+      "normalize": "NFC + casefold; trim; đổi dấu gạch –/— thành -; collapse whitespace.",
+      "currency": "VNĐ/vnd/đồng/₫ -> VND. Token triệu/tr không có tiền tệ khác -> VND theo quy ước nguồn tiếng Việt và gắn SALARY_CURRENCY_INFERRED. USD/$ hoặc đơn vị khác không quy đổi; cột *_vnd=NULL và gắn SALARY_NON_VND.",
+      "numeric": "Token triệu/tr: số thập phân dấu chấm hoặc phẩy nhân 1000000. Token VND nguyên: dấu . hoặc , chỉ là nhóm nghìn khi đúng mẫu 1-3 chữ số rồi các nhóm 3; không xóa dấu phân cách mù quáng. Dùng Decimal, không float. Giá trị mơ hồ -> UNPARSED.",
+      "period": "Chỉ /tháng hoặc mỗi tháng -> MONTH; /năm -> YEAR; /ngày -> DAY; /giờ -> HOUR trong salary_raw. Thiếu kỳ -> UNKNOWN + SALARY_PERIOD_UNKNOWN. period_basis=EXPLICIT nếu có kỳ, ngược lại UNKNOWN. Không tự coi mọi tiền lương là theo tháng.",
+      "variants": [
+        {
+          "form": "a - b triệu hoặc a - b VNĐ",
+          "salary_type": "RANGE",
+          "min": "a * multiplier",
+          "max": "b * multiplier",
+          "min_inclusive": true,
+          "max_inclusive": true
+        },
+        {
+          "form": "a triệu hoặc a VNĐ",
+          "salary_type": "FIXED",
+          "min": "a * multiplier",
+          "max": "a * multiplier",
+          "min_inclusive": true,
+          "max_inclusive": true
+        },
+        {
+          "form": "Từ a triệu",
+          "salary_type": "LOWER_BOUND",
+          "min": "a * multiplier",
+          "max": null,
+          "min_inclusive": true,
+          "max_inclusive": null
+        },
+        {
+          "form": "Trên a triệu",
+          "salary_type": "LOWER_BOUND",
+          "min": "a * multiplier",
+          "max": null,
+          "min_inclusive": false,
+          "max_inclusive": null
+        },
+        {
+          "form": "Đến/Tối đa a triệu",
+          "salary_type": "UPPER_BOUND",
+          "min": null,
+          "max": "a * multiplier",
+          "min_inclusive": null,
+          "max_inclusive": true
+        },
+        {
+          "form": "Dưới a triệu",
+          "salary_type": "UPPER_BOUND",
+          "min": null,
+          "max": "a * multiplier",
+          "min_inclusive": null,
+          "max_inclusive": false
+        },
+        {
+          "form": "Thỏa thuận/Thoả thuận",
+          "salary_type": "NEGOTIABLE",
+          "min": null,
+          "max": null,
+          "min_inclusive": null,
+          "max_inclusive": null
+        }
+      ],
+      "fallback": "NULL/rỗng -> MISSING; không khớp -> UNPARSED, số tiền NULL + SALARY_UNPARSED. Không suy 0 cho thỏa thuận. Giá trị âm hoặc min>max -> NULL cả các số tiền + SALARY_INVALID_RANGE.",
+      "midpoint": "Có đủ min và max hợp lệ -> (min+max)/2, Decimal(18,2), ROUND_HALF_UP. Chỉ một cận thì NULL.",
+      "inclusive_defaults": "Với MISSING/UNPARSED/NEGOTIABLE: cả hai inclusive=NULL. Currency chưa nhận diện=NULL. Period luôn UNKNOWN nếu thiếu. Không tự làm tròn 9.999.982 thành 10.000.000.",
+      "mart_rule": "Chỉ so sánh lương tháng khi currency=VND và salary_period=MONTH; báo tỷ lệ bao phủ và không trộn kỳ lương."
+    },
+    "experience_parse": {
+      "normalization": "clean_text + casefold + chuẩn hóa dấu gạch. Số thập phân dùng Decimal.",
+      "variants": [
+        {
+          "form": "a - b năm",
+          "type": "RANGE",
+          "min": "a",
+          "max": "b",
+          "min_inclusive": true,
+          "max_inclusive": true
+        },
+        {
+          "form": "Hơn/Trên a năm",
+          "type": "LOWER_BOUND",
+          "min": "a",
+          "max": null,
+          "min_inclusive": false,
+          "max_inclusive": null
+        },
+        {
+          "form": "Từ/Ít nhất a năm",
+          "type": "LOWER_BOUND",
+          "min": "a",
+          "max": null,
+          "min_inclusive": true,
+          "max_inclusive": null
+        },
+        {
+          "form": "Dưới a năm",
+          "type": "UPPER_BOUND",
+          "min": null,
+          "max": "a",
+          "min_inclusive": null,
+          "max_inclusive": false
+        },
+        {
+          "form": "a năm",
+          "type": "FIXED",
+          "min": "a",
+          "max": "a",
+          "min_inclusive": true,
+          "max_inclusive": true
+        },
+        {
+          "form": "Không yêu cầu",
+          "type": "NO_REQUIREMENT",
+          "min": null,
+          "max": null,
+          "min_inclusive": null,
+          "max_inclusive": null
+        }
+      ],
+      "fallback": "Rỗng -> MISSING; không nhận diện -> UNPARSED + EXPERIENCE_UNPARSED. Hai cận âm/đảo ngược -> NULL và EXPERIENCE_INVALID_RANGE. Các inclusive của MISSING/UNPARSED=NULL. Không diễn giải Không yêu cầu thành kinh nghiệm thực tế bằng 0."
+    },
+    "education_lookup": {
+      "normalizer": "clean_text + casefold",
+      "dictionary": "education_level",
+      "on_unmatched": "NULL + EDUCATION_UNMAPPED"
+    },
+    "job_level_lookup": {
+      "normalizer": "clean_text + casefold",
+      "dictionary": "job_level",
+      "on_unmatched": "NULL + JOB_LEVEL_UNMAPPED"
+    },
+    "employment_type_lookup": {
+      "normalizer": "clean_text + casefold",
+      "dictionary": "employment_type",
+      "on_unmatched": "NULL + EMPLOYMENT_TYPE_UNMAPPED"
+    },
+    "vacancies_parse": {
+      "pattern": "^([1-9][0-9]*)\\s*(người|vị trí)?$",
+      "normalizer": "clean_text + casefold",
+      "output": "Số nguyên nhóm 1 nếu <= 2147483647. Không khớp/overflow -> NULL + VACANCIES_UNPARSED. Không mặc định 1."
+    },
+    "date_parse": {
+      "pattern": "dd/MM/yyyy",
+      "instruction": "Parse strict ngày lịch hợp lệ; NULL giữ NULL; chuỗi sai -> NULL + DATE_PARSE_FAILED. Không thay bằng ngày crawl."
+    },
+    "updated_date_parse": {
+      "pattern": "^([0-9]{2}/[0-9]{2}/[0-9]{4})(?:\\s*\\(.*\\))?$",
+      "instruction": "Lấy ngày tuyệt đối ở đầu, parse strict dd/MM/yyyy; bỏ phần tương đối. Chỉ có 3 giờ trước thì NULL + UPDATED_DATE_UNRESOLVED. Không đổi thành posted_date."
+    },
+    "timestamp_parse": {
+      "instruction": "Parse ISO8601 có offset, đổi về UTC. Thiếu offset có thể dùng Asia/Ho_Chi_Minh và gắn TIMEZONE_ASSUMED; parse lỗi -> NULL + CRAWLED_AT_PARSE_FAILED. Không thay bằng giờ hiện tại."
+    },
+    "record_status": {
+      "as_of": "Ngày của crawled_at tại Asia/Ho_Chi_Minh.",
+      "instruction": "expiration_date < crawl_date -> EXPIRED; >= -> WITHIN_DEADLINE; thiếu một trong hai -> UNKNOWN. Đây là trạng thái hạn nộp tại lần crawl, không phải trạng thái còn tuyển hôm nay."
+    },
+    "location_resolution": {
+      "grain": "province/city",
+      "reference": "reference.locations",
+      "steps": [
+        "Lấy tỉnh/thành từ work_location_raw.province và các mục trong location_raw, bỏ trùng.",
+        "Chỉ tách dấu phẩy/; trong location_raw là danh sách tỉnh của nguồn này; không tách source_address để đoán địa phương.",
+        "Chuẩn hóa alias theo dictionaries.location_aliases; tra theo canonical_name, country_code=VN, admin_level=province và hiệu lực tại crawl_date.",
+        "Không có crawl_date hoặc danh mục phù hợp thời điểm/khớp duy nhất: không tạo khóa, gắn LOCATION_UNRESOLVED.",
+        "Một tên tra được -> một dòng job_locations. Giữ cả hai địa điểm với Hải Phòng, Bắc Ninh.",
+        "Primary ưu tiên work_location_raw.province nếu khớp duy nhất; nếu thiếu và chỉ có một địa điểm đã tra thì chọn địa điểm đó; nếu nhiều địa điểm không có primary rõ thì primary_location_id=NULL và mọi is_primary=false.",
+        "Nếu hai trường tỉnh đơn trái nhau: giữ cả hai dưới dạng nguồn khai báo, ưu tiên trường structured và gắn LOCATION_CONFLICT để kiểm tra.",
+        "Không lấy địa chỉ làm việc để điền companies.location_id. Không gán phường của tỉnh thứ nhất cho tỉnh thứ hai."
+      ],
+      "counting": "COUNT(DISTINCT job_id) khi join theo địa điểm. Không cộng tổng theo tỉnh rồi coi là tổng tin toàn quốc; không nhân vacancies cho mỗi địa điểm."
+    },
+    "occupation_lookup": {
+      "reference": "reference.occupations + approved occupation crosswalk",
+      "instruction": "Ưu tiên nhãn field qua crosswalk đã duyệt, rồi category nếu ánh xạ rõ. Trường có nhiều nghề mâu thuẫn hoặc thiếu crosswalk -> NULL + OCCUPATION_UNRESOLVED. Không dùng mã ngành học làm mã nghề."
+    },
+    "industry_lookup": {
+      "reference": "reference.industries + approved industry crosswalk",
+      "instruction": "Chỉ ánh xạ có bằng chứng và crosswalk đã duyệt. Không map Kế toán thành ngành kinh doanh của doanh nghiệp. Nhiều nhãn ngành chưa chọn được ngành chính -> NULL + INDUSTRY_UNRESOLVED; giữ source_industry_labels."
+    },
+    "skill_extraction": {
+      "enabled": false,
+      "reason": "Mẫu không có skills; chưa có danh mục kỹ năng, alias và extractor đã duyệt.",
+      "reference": "reference.skills + approved skill aliases",
+      "candidate_fields": [
+        "skills_raw",
+        "requirements_raw",
+        "description_raw"
+      ],
+      "output_when_disabled": "Bảng rỗng đúng schema; không tạo skill_id rỗng/UNKNOWN.",
+      "activation_contract": [
+        "Bật sau khi cấp danh mục và triển khai extractor có version.",
+        "Dùng ranh giới từ/Unicode, không substring mù quáng; ghi nguyên đoạn bằng chứng và evidence_field.",
+        "Ưu tiên bằng chứng cấu trúc, rồi requirements, rồi description. Không lấy benefits làm yêu cầu kỹ năng.",
+        "Nhận diện một từ khóa chỉ tạo PENDING; confidence_score=NULL nếu chưa hiệu chỉnh.",
+        "is_required/required_level/years_required=NULL cho bộ trích từ khóa cơ bản; chỉ bổ sung bằng bộ phân tích ngữ cảnh có kiểm chứng.",
+        "Gộp mỗi job_id + skill_id thành một dòng: ưu tiên nguồn theo thứ tự candidate_fields, rồi vị trí xuất hiện sớm nhất."
+      ],
+      "examples_to_review": [
+        "Microsoft Excel",
+        "MISA",
+        "FAST"
+      ],
+      "gold_filter": "Chỉ dùng validation_status=APPROVED cho thống kê kỹ năng đã xác minh; báo riêng coverage."
+    },
+    "business_hash": {
+      "columns": [
+        "job_id",
+        "source_name",
+        "source_job_id",
+        "job_title",
+        "occupation_id",
+        "company_id",
+        "primary_location_id",
+        "industry_id",
+        "salary_min_vnd",
+        "salary_max_vnd",
+        "salary_midpoint_vnd",
+        "experience_min_years",
+        "experience_max_years",
+        "education_level",
+        "job_level",
+        "employment_type",
+        "working_model",
+        "vacancies",
+        "job_description",
+        "job_requirements",
+        "posted_date",
+        "expiration_date",
+        "source_url",
+        "source_updated_date",
+        "working_time",
+        "salary_type",
+        "salary_currency",
+        "salary_period",
+        "salary_period_basis",
+        "experience_type",
+        "category_name",
+        "source_industry_labels",
+        "source_field_labels",
+        "source_requirement_items"
+      ],
+      "instruction": "Hash canonical JSON object của các cột liệt kê sau chuẩn hóa. Không dùng Python hash(). Mảng nhãn giữ thứ tự theo source. Hash của job_postings không thay thế việc so sánh/cập nhật riêng các bảng con."
+    },
+    "quality_flags": {
+      "instruction": "Hợp nhất các mã cảnh báo từ mọi quy tắc, bỏ trùng, sort tăng dần. Mảng luôn không NULL.",
+      "always_for_this_source": [
+        "POSTED_DATE_MISSING",
+        "SKILLS_NOT_PROVIDED",
+        "WORKING_MODEL_UNKNOWN"
+      ]
+    }
+  },
+  "dictionaries": {
+    "education_level": {
+      "cao đẳng trở lên": "COLLEGE",
+      "đại học trở lên": "UNIVERSITY",
+      "trung cấp trở lên": "INTERMEDIATE",
+      "không yêu cầu": "NOT_REQUIRED"
+    },
+    "job_level": {
+      "nhân viên": "STAFF",
+      "trưởng phòng": "DEPARTMENT_MANAGER"
+    },
+    "employment_type": {
+      "toàn thời gian cố định": "FULL_TIME"
+    },
+    "location_aliases": {
+      "đà nẵng": "Đà Nẵng",
+      "hưng yên": "Hưng Yên",
+      "hà nội": "Hà Nội",
+      "hải phòng": "Hải Phòng",
+      "bắc ninh": "Bắc Ninh",
+      "hồ chí minh": "Hồ Chí Minh",
+      "tp.hcm": "Hồ Chí Minh",
+      "tp. hồ chí minh": "Hồ Chí Minh",
+      "đắk lắk": "Đắk Lắk"
+    }
+  },
+  "deduplication": {
+    "silver_job_key": [
+      "job_id"
+    ],
+    "winner_order": [
+      "crawled_at DESC NULLS LAST",
+      "source_updated_date DESC NULLS LAST",
+      "ingested_at DESC",
+      "raw_id DESC"
+    ],
+    "instruction": "So sánh phiên bản cả batch mới và phiên bản đang lưu. Giữ metadata thứ tự phiên bản trong trạng thái ETL/Bronze để không cho batch cũ ghi đè bản mới. Các bảng con chỉ sinh từ bản thắng.",
+    "companies": "Theo company_id: lấy tên hiển thị từ bản thắng mới nhất, tie-break bằng job_id; không gộp công ty giữa các nguồn chỉ vì giống tên.",
+    "same_run_retry": "Giữ ingestion_batch_id/raw_id; không tạo thêm dòng Bronze hoặc job_postings.",
+    "missing_from_next_crawl": "Không coi tin vắng mặt trong batch sau là đã xóa/đóng tuyển."
+  },
+  "quality_actions": {
+    "quarantine_file": [
+      "JSON sai cú pháp",
+      "Top-level không phải mảng object"
+    ],
+    "quarantine_silver_row": [
+      "source_name trống",
+      "thiếu cả source_job_id và source_url hợp lệ",
+      "job_title trống",
+      "kiểu dữ liệu đầu vào không đúng và không có chuyển đổi được định nghĩa"
+    ],
+    "keep_bronze": "Giữ file/payload gốc, raw_id, source_file, ingestion_batch_id cùng mã lỗi.",
+    "null_and_flag": [
+      "Lương không parse được",
+      "Ngày không parse được",
+      "Lookup nghề/ngành/địa phương không khớp",
+      "Số lượng tuyển không parse được"
+    ],
+    "write_gate": "Không ghi bảng con có FK không tồn tại; kiểm tra khóa, cardinality và phạm vi số sau transform. StructType không tự kiểm tra PK/FK/checks.",
+    "atomicity": "Nếu lưu mỗi bảng ở một thư mục Delta, không mặc định có transaction chung nhiều bảng. Cần publish theo batch thành công hoặc checkpoint/retry đồng bộ ở tầng ETL."
+  },
+  "acceptance_examples": [
+    {
+      "input": {
+        "salary": "12 - 14 triệu"
+      },
+      "expected": {
+        "salary_min_vnd": 12000000,
+        "salary_max_vnd": 14000000,
+        "salary_midpoint_vnd": 13000000,
+        "salary_type": "RANGE",
+        "salary_period": "UNKNOWN"
+      }
+    },
+    {
+      "input": {
+        "salary": "Từ 10 triệu"
+      },
+      "expected": {
+        "salary_min_vnd": 10000000,
+        "salary_max_vnd": null,
+        "salary_midpoint_vnd": null,
+        "salary_type": "LOWER_BOUND",
+        "salary_min_inclusive": true
+      }
+    },
+    {
+      "input": {
+        "salary": "Thỏa thuận"
+      },
+      "expected": {
+        "salary_min_vnd": null,
+        "salary_max_vnd": null,
+        "salary_midpoint_vnd": null,
+        "salary_type": "NEGOTIABLE"
+      }
+    },
+    {
+      "input": {
+        "salary": "9.999.982 VNĐ"
+      },
+      "expected": {
+        "salary_min_vnd": 9999982,
+        "salary_max_vnd": 9999982,
+        "salary_midpoint_vnd": 9999982,
+        "salary_type": "FIXED"
+      }
+    },
+    {
+      "input": {
+        "experience": "Hơn 1 năm"
+      },
+      "expected": {
+        "experience_min_years": 1,
+        "experience_max_years": null,
+        "experience_type": "LOWER_BOUND",
+        "experience_min_inclusive": false
+      }
+    },
+    {
+      "input": {
+        "experience": "Không yêu cầu"
+      },
+      "expected": {
+        "experience_min_years": null,
+        "experience_max_years": null,
+        "experience_type": "NO_REQUIREMENT"
+      }
+    },
+    {
+      "input": {
+        "updated_at": "25/09/2026 (3 giờ trước)"
+      },
+      "expected": {
+        "source_updated_date": "2026-09-25",
+        "posted_date": null
+      }
+    },
+    {
+      "input": {
+        "crawled_at": "2026-09-25T15:58:47.387717+07:00"
+      },
+      "expected": {
+        "crawled_at": "2026-09-25T08:58:47.387717Z"
+      }
+    },
+    {
+      "input": {
+        "location": "Hải Phòng, Bắc Ninh",
+        "work_location.province": "Hải Phòng"
+      },
+      "expected": {
+        "job_postings_rows": 1,
+        "job_locations_rows_if_both_lookups_resolve": 2,
+        "primary_province": "Hải Phòng"
+      }
+    }
+  ]
+}

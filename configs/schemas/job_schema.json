@@ -1,0 +1,836 @@
+{
+  "config_version": "1.0.0",
+  "dataset": "jobs",
+  "language": "vi",
+  "schema_format": "Spark StructType JSON nằm tại tables[table_name].spark_schema",
+  "scope": "Source -> Bronze -> Silver",
+  "timezone": {
+    "source_default": "Asia/Ho_Chi_Minh",
+    "storage": "UTC"
+  },
+  "tables": {
+    "source.raw_job": {
+      "grain": "Một object trong mảng JSON nguồn.",
+      "spark_schema": {
+        "type": "struct",
+        "fields": [
+          {
+            "name": "category",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "job_id",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "job_title",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "company",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "salary",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "location",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "expiration_date",
+            "type": "string",
+            "nullable": true
+          },
+                    {
+            "name": "posted_date",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "job_url",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "experience",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "education",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "skills",
+            "type": {
+              "type": "array",
+              "elementType": "string"
+            },
+            "nullable": true
+          },          
+          {
+            "name": "description",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "requirements",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "source_name",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "crawled_at",
+            "type": "string",
+            "nullable": true
+          }
+        ]
+      },
+      "primary_key": [],
+      "unique_keys": [],
+      "foreign_keys": [],
+      "checks": []
+    },
+    "bronze.job_postings": {
+      "grain": "Một object nguồn trong một lần nhập dữ liệu; giữ các lần crawl và các đợt nhập.",
+      "spark_schema": {
+        "type": "struct",
+        "fields": [
+          {
+            "name": "raw_id",
+            "type": "string",
+            "nullable": false
+          },
+          {
+            "name": "category",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "job_id",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "job_title_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "company_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "salary_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "location_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "expiration_date_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "posted_date_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "job_url",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "experience_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "education_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "skills_raw",
+            "type": {
+              "type": "array",
+              "elementType": "string",
+              "containsNull": false
+            },
+            "nullable": true
+          },
+          {
+            "name": "description_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "requirements_raw",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "source_name",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "crawled_at",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "ingestion_batch_id",
+            "type": "string",
+            "nullable": false
+          },
+          {
+            "name": "source_file",
+            "type": "string",
+            "nullable": false
+          }
+        ]
+      },
+      "primary_key": [
+        "ingestion_batch_id",
+        "raw_id"
+      ],
+      "unique_keys": [],
+      "foreign_keys": [],
+      "checks": [
+        "source_record_index >= 0"
+      ]
+    },
+    "silver.job_postings": {
+      "grain": "Một tin duy nhất theo nguồn và mã tin; giữ bản mới nhất theo thời điểm quan sát.",
+      "spark_schema": {
+        "type": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Khóa tin nội bộ SHA-256; khác job_id của nguồn ở Bronze."
+            }
+          },
+          {
+            "name": "source_name",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Tên nguồn chuẩn hóa."
+            }
+          },
+          {
+            "name": "source_job_id",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Mã tin gốc, giữ kiểu string để không mất số 0 đầu."
+            }
+          },
+          {
+            "name": "job_title",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Tiêu đề làm sạch khoảng trắng, giữ nội dung và dấu tiếng Việt."
+            }
+          },
+          {
+            "name": "occupation_id",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Tra danh mục nghề nghiệp đã duyệt; không có kết quả thì NULL."
+            }
+          },
+          {
+            "name": "company_id",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Tra bảng companies; định danh theo tên hiện chỉ là tạm thời."
+            }
+          },
+          {
+            "name": "primary_location_id",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Một tỉnh/thành chính có căn cứ từ nguồn; không tự chọn khi không rõ."
+            }
+          },
+          {
+            "name": "industry_id",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Ngành kinh tế chuẩn qua crosswalk đã duyệt; không lấy trực tiếp category_name."
+            }
+          },
+          {
+            "name": "salary_min_vnd",
+            "type": "decimal(18,2)",
+            "nullable": true,
+            "metadata": {
+              "comment": "Cận dưới tiền VND của kỳ được ghi trong salary_period."
+            }
+          },
+          {
+            "name": "salary_max_vnd",
+            "type": "decimal(18,2)",
+            "nullable": true,
+            "metadata": {
+              "comment": "Cận trên tiền VND; NULL nếu nguồn chỉ cho cận dưới."
+            }
+          },
+          {
+            "name": "salary_midpoint_vnd",
+            "type": "decimal(18,2)",
+            "nullable": true,
+            "metadata": {
+              "comment": "Trung điểm khi có đủ hai cận; không phải lương thực nhận."
+            }
+          },
+          {
+            "name": "experience_min_years",
+            "type": "decimal(5,2)",
+            "nullable": true,
+            "metadata": {
+              "comment": "Cận dưới số năm kinh nghiệm."
+            }
+          },
+          {
+            "name": "experience_max_years",
+            "type": "decimal(5,2)",
+            "nullable": true,
+            "metadata": {
+              "comment": "Cận trên số năm kinh nghiệm."
+            }
+          },
+          {
+            "name": "education_level",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Mã trình độ tối thiểu theo bảng ánh xạ."
+            }
+          },
+          {
+            "name": "job_level",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Cấp bậc theo bảng ánh xạ; nhãn lạ để NULL và gắn cờ."
+            }
+          },
+          {
+            "name": "employment_type",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "FULL_TIME/PART_TIME/INTERNSHIP/... khi có bằng chứng."
+            }
+          },
+          {
+            "name": "working_model",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "ONSITE/REMOTE/HYBRID nếu nguồn nói rõ; mặc định NULL."
+            }
+          },
+          {
+            "name": "job_description",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Mô tả công việc; giữ xuống dòng."
+            }
+          },
+          {
+            "name": "job_requirements",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Yêu cầu tuyển dụng; giữ xuống dòng."
+            }
+          },
+          {
+            "name": "posted_date",
+            "type": "date",
+            "nullable": true,
+            "metadata": {
+              "comment": "Ngày đăng; mẫu hiện tại luôn NULL."
+            }
+          },
+          {
+            "name": "expiration_date",
+            "type": "date",
+            "nullable": true,
+            "metadata": {
+              "comment": "Hạn ứng tuyển, parse dd/MM/yyyy."
+            }
+          },
+          {
+            "name": "source_url",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "URL tin tuyển dụng."
+            }
+          },
+          {
+            "name": "record_status",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "WITHIN_DEADLINE/EXPIRED/UNKNOWN tại thời điểm crawled_at; không khẳng định tin còn mở."
+            }
+          },
+          {
+            "name": "crawled_at",
+            "type": "timestamp",
+            "nullable": true,
+            "metadata": {
+              "comment": "Thời điểm crawl đổi về UTC."
+            }
+          },
+          {
+            "name": "processed_at",
+            "type": "timestamp",
+            "nullable": false,
+            "metadata": {
+              "comment": "Thời điểm chạy xử lý UTC."
+            }
+          },
+          {
+            "name": "source_updated_date",
+            "type": "date",
+            "nullable": true,
+            "metadata": {
+              "comment": "Ngày cập nhật tách từ updated_at_raw; không thế cho posted_date."
+            }
+          },
+          {
+            "name": "salary_type",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "RANGE/FIXED/LOWER_BOUND/UPPER_BOUND/NEGOTIABLE/MISSING/UNPARSED."
+            }
+          },
+          {
+            "name": "salary_currency",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "VND hoặc mã tiền tệ được nhận diện; không tự đổi ngoại tệ."
+            }
+          },
+          {
+            "name": "experience_type",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "RANGE/LOWER_BOUND/UPPER_BOUND/FIXED/NO_REQUIREMENT/MISSING/UNPARSED."
+            }
+          },
+          {
+            "name": "category_name",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Nhãn phân loại nguồn sau chuẩn hóa khoảng trắng."
+            }
+          },
+          {
+            "name": "source_industry_labels",
+            "type": {
+              "type": "array",
+              "elementType": "string",
+              "containsNull": false
+            },
+            "nullable": true,
+            "metadata": {
+              "comment": "Giữ mọi nhãn industry nguồn, không ép thành một ngành chuẩn."
+            }
+          },
+          {
+            "name": "source_field_labels",
+            "type": {
+              "type": "array",
+              "elementType": "string",
+              "containsNull": false
+            },
+            "nullable": true,
+            "metadata": {
+              "comment": "Giữ mọi nhãn field nguồn."
+            }
+          },
+          {
+            "name": "source_requirement_items",
+            "type": {
+              "type": "array",
+              "elementType": "string",
+              "containsNull": false
+            },
+            "nullable": true,
+            "metadata": {
+              "comment": "Danh sách yêu cầu gốc được làm sạch khoảng trắng."
+            }
+          },
+          {
+            "name": "raw_id",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Bản ghi Bronze được chọn làm phiên bản hiện tại."
+            }
+          },
+          {
+            "name": "ingestion_batch_id",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Mã đợt nhập dữ liệu để truy vết."
+            }
+          },
+          {
+            "name": "source_file",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Đường dẫn/URI file nguồn."
+            }
+          },
+          {
+            "name": "data_quality_flags",
+            "type": {
+              "type": "array",
+              "elementType": "string",
+              "containsNull": false
+            },
+            "nullable": false,
+            "metadata": {
+              "comment": "Danh sách cảnh báo; mảng rỗng nếu không có."
+            }
+          }
+        ]
+      },
+      "primary_key": [
+        "job_id"
+      ],
+      "unique_keys": [
+        [
+          "source_name",
+          "source_job_id"
+        ]
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "company_id"
+          ],
+          "references": "silver.companies",
+          "referenced_columns": [
+            "company_id"
+          ],
+          "nullable": true
+        },
+        {
+          "columns": [
+            "occupation_id"
+          ],
+          "references": "reference.occupations",
+          "referenced_columns": [
+            "occupation_id"
+          ],
+          "nullable": true
+        },
+        {
+          "columns": [
+            "industry_id"
+          ],
+          "references": "reference.industries",
+          "referenced_columns": [
+            "industry_id"
+          ],
+          "nullable": true
+        },
+        {
+          "columns": [
+            "primary_location_id"
+          ],
+          "references": "reference.locations",
+          "referenced_columns": [
+            "location_id"
+          ],
+          "nullable": true
+        }
+      ],
+      "checks": [
+        "UNIQUE(source_name, source_job_id) chỉ kiểm tra khi source_job_id không NULL.",
+        "source_name và job_title không được trống sau trim.",
+        "salary_min_vnd IS NULL OR salary_min_vnd >= 0",
+        "salary_max_vnd IS NULL OR salary_max_vnd >= 0",
+        "Nếu đủ hai cận lương: salary_min_vnd <= salary_max_vnd.",
+        "salary_midpoint_vnd chỉ có giá trị khi đủ hai cận lương hợp lệ.",
+        "salary_currency != VND => cả ba cột salary_*_vnd phải NULL.",
+        "Nếu có cận kinh nghiệm: cận >= 0; đủ hai cận thì min <= max.",
+        "vacancies IS NULL OR vacancies > 0",
+        "Không xác định ngày đăng => posted_date IS NULL.",
+        "primary_location_id khác NULL phải có dòng tương ứng is_primary=true trong silver.job_locations."
+      ]
+    },
+    "silver.companies": {
+      "grain": "Một nhóm tên công ty chuẩn hóa trong một nguồn; chưa đảm bảo một pháp nhân.",
+      "spark_schema": {
+        "type": "struct",
+        "fields": [
+          {
+            "name": "company_id",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Khóa nội bộ theo source + normalized_name, cần đối soát khi có mã doanh nghiệp."
+            }
+          },
+          {
+            "name": "company_name",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Tên công ty hiển thị sau làm sạch khoảng trắng."
+            }
+          }
+        ]
+      },
+      "primary_key": [
+        "company_id"
+      ],
+      "unique_keys": [
+        [
+          "source_name",
+          "normalized_name"
+        ]
+      ],
+      "checks": []
+    },
+    "silver.job_skills": {
+      "grain": "Một cặp tin tuyển dụng – kỹ năng.",
+      "spark_schema": {
+        "type": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Khóa nội bộ của tin tuyển dụng."
+            }
+          },
+          {
+            "name": "skill_id",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Khóa từ danh mục kỹ năng đã duyệt."
+            }
+          },
+          {
+            "name": "raw_skill_text",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Đoạn văn bản làm bằng chứng kỹ năng."
+            }
+          },
+          {
+            "name": "is_required",
+            "type": "boolean",
+            "nullable": true,
+            "metadata": {
+              "comment": "NULL nếu chỉ thấy từ khóa, chưa xác định bắt buộc hay ưu tiên."
+            }
+          },
+          {
+            "name": "required_level",
+            "type": "string",
+            "nullable": true,
+            "metadata": {
+              "comment": "Chỉ lấy khi có mức kỹ năng cụ thể trong cùng ngữ cảnh."
+            }
+          },
+          {
+            "name": "years_required",
+            "type": "decimal(5,2)",
+            "nullable": true,
+            "metadata": {
+              "comment": "Chỉ số năm dành riêng cho kỹ năng; không sao chép kinh nghiệm chung."
+            }
+          },
+          {
+            "name": "extraction_method",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "STRUCTURED/DICTIONARY/MANUAL/..."
+            }
+          },
+          {
+            "name": "confidence_score",
+            "type": "double",
+            "nullable": true,
+            "metadata": {
+              "comment": "NULL nếu chưa có điểm được hiệu chỉnh; không tự gán 1.0."
+            }
+          }
+        ]
+      },
+      "primary_key": [
+        "job_id",
+        "skill_id"
+      ],
+      "unique_keys": [],
+      "foreign_keys": [
+        {
+          "columns": [
+            "job_id"
+          ],
+          "references": "silver.job_postings",
+          "referenced_columns": [
+            "job_id"
+          ],
+          "nullable": false
+        },
+        {
+          "columns": [
+            "skill_id"
+          ],
+          "references": "reference.skills",
+          "referenced_columns": [
+            "skill_id"
+          ],
+          "nullable": false
+        }
+      ],
+      "checks": [
+        "confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 1)",
+        "years_required IS NULL OR years_required >= 0",
+        "Không có extractor/danh mục được duyệt: tạo bảng rỗng đúng schema."
+      ]
+    },
+    "silver.job_locations": {
+      "grain": "Một cặp tin tuyển dụng – tỉnh/thành.",
+      "spark_schema": {
+        "type": "struct",
+        "fields": [
+          {
+            "name": "job_id",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Khóa nội bộ tin tuyển dụng."
+            }
+          },
+          {
+            "name": "location_id",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Tỉnh/thành đã tra danh mục locations."
+            }
+          },
+          {
+            "name": "location_name",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Tên địa phương chuẩn hóa từ nguồn."
+            }
+          }
+        ]
+      },
+      "primary_key": [
+        "job_id",
+        "location_id"
+      ],
+      "unique_keys": [],
+      "foreign_keys": [
+        {
+          "columns": [
+            "job_id"
+          ],
+          "references": "silver.job_postings",
+          "referenced_columns": [
+            "job_id"
+          ],
+          "nullable": false
+        },
+        {
+          "columns": [
+            "location_id"
+          ],
+          "references": "reference.locations",
+          "referenced_columns": [
+            "location_id"
+          ],
+          "nullable": false
+        }
+      ],
+      "checks": []
+    }
+  },
+  "external_reference_contracts": {
+    "reference.locations": {
+      "required_columns": [
+        "location_id",
+        "canonical_name",
+        "country_code",
+        "admin_level",
+        "valid_from",
+        "valid_to"
+      ]
+    },
+    "reference.occupations": {
+      "required_columns": [
+        "occupation_id",
+        "occupation_name"
+      ]
+    },
+    "reference.industries": {
+      "required_columns": [
+        "industry_id",
+        "industry_name"
+      ]
+    },
+    "reference.skills": {
+      "required_columns": [
+        "skill_id",
+        "skill_name"
+      ]
+    }
+  }
+}
