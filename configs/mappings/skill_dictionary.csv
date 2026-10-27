@@ -1,0 +1,645 @@
+﻿skill_id,skill_name,skill_category,skill_type,is_active
+SK0001,Python,programming_language,hard_skill,1
+SK0002,Java,programming_language,hard_skill,1
+SK0003,JavaScript,programming_language,hard_skill,1
+SK0004,TypeScript,programming_language,hard_skill,1
+SK0005,C,programming_language,hard_skill,1
+SK0006,C++,programming_language,hard_skill,1
+SK0007,C#,programming_language,hard_skill,1
+SK0008,Go,programming_language,hard_skill,1
+SK0009,R,programming_language,hard_skill,1
+SK0010,PHP,programming_language,hard_skill,1
+SK0011,Ruby,programming_language,hard_skill,1
+SK0012,Kotlin,programming_language,hard_skill,1
+SK0013,Swift,programming_language,hard_skill,1
+SK0014,Dart,programming_language,hard_skill,1
+SK0015,Scala,programming_language,hard_skill,1
+SK0016,Rust,programming_language,hard_skill,1
+SK0017,Visual Basic .NET,programming_language,hard_skill,1
+SK0018,Bash,programming_language,hard_skill,1
+SK0019,PowerShell,programming_language,hard_skill,1
+SK0020,SQL,programming_language,hard_skill,1
+SK0021,PL/SQL,programming_language,hard_skill,1
+SK0022,T-SQL,programming_language,hard_skill,1
+SK0023,HTML,web_frontend,hard_skill,1
+SK0024,CSS,web_frontend,hard_skill,1
+SK0025,Sass,web_frontend,hard_skill,1
+SK0026,React,web_frontend,hard_skill,1
+SK0027,Next.js,web_frontend,hard_skill,1
+SK0028,Vue.js,web_frontend,hard_skill,1
+SK0029,Nuxt,web_frontend,hard_skill,1
+SK0030,Angular,web_frontend,hard_skill,1
+SK0031,AngularJS,web_frontend,hard_skill,1
+SK0032,jQuery,web_frontend,hard_skill,1
+SK0033,Bootstrap,web_frontend,hard_skill,1
+SK0034,Tailwind CSS,web_frontend,hard_skill,1
+SK0035,Redux,web_frontend,hard_skill,1
+SK0036,Webpack,web_frontend,hard_skill,1
+SK0037,Vite,web_frontend,hard_skill,1
+SK0038,Node.js,backend_framework,hard_skill,1
+SK0039,Express.js,backend_framework,hard_skill,1
+SK0040,NestJS,backend_framework,hard_skill,1
+SK0041,Spring Framework,backend_framework,hard_skill,1
+SK0042,Spring Boot,backend_framework,hard_skill,1
+SK0043,Hibernate,backend_framework,hard_skill,1
+SK0044,.NET,backend_framework,hard_skill,1
+SK0045,.NET Framework,backend_framework,hard_skill,1
+SK0046,.NET Core,backend_framework,hard_skill,1
+SK0047,ASP.NET,backend_framework,hard_skill,1
+SK0048,ASP.NET Core,backend_framework,hard_skill,1
+SK0049,Entity Framework,backend_framework,hard_skill,1
+SK0050,Django,backend_framework,hard_skill,1
+SK0051,Flask,backend_framework,hard_skill,1
+SK0052,FastAPI,backend_framework,hard_skill,1
+SK0053,Laravel,backend_framework,hard_skill,1
+SK0054,Symfony,backend_framework,hard_skill,1
+SK0055,Ruby on Rails,backend_framework,hard_skill,1
+SK0056,Android Development,mobile_game,hard_skill,1
+SK0057,iOS Development,mobile_game,hard_skill,1
+SK0058,Flutter,mobile_game,hard_skill,1
+SK0059,React Native,mobile_game,hard_skill,1
+SK0060,Unity,mobile_game,hard_skill,1
+SK0061,Unreal Engine,mobile_game,hard_skill,1
+SK0062,MySQL,database,hard_skill,1
+SK0063,PostgreSQL,database,hard_skill,1
+SK0064,Microsoft SQL Server,database,hard_skill,1
+SK0065,Oracle Database,database,hard_skill,1
+SK0066,SQLite,database,hard_skill,1
+SK0067,MariaDB,database,hard_skill,1
+SK0068,MongoDB,database,hard_skill,1
+SK0069,Redis,database,hard_skill,1
+SK0070,Elasticsearch,database,hard_skill,1
+SK0071,Apache Cassandra,database,hard_skill,1
+SK0072,Neo4j,database,hard_skill,1
+SK0073,DynamoDB,database,hard_skill,1
+SK0074,NoSQL,database,hard_skill,1
+SK0075,ETL,data_engineering,hard_skill,1
+SK0076,ELT,data_engineering,hard_skill,1
+SK0077,Data Modeling,data_engineering,hard_skill,1
+SK0078,Data Warehouse,data_engineering,hard_skill,1
+SK0079,Data Lake,data_engineering,hard_skill,1
+SK0080,Data Lakehouse,data_engineering,hard_skill,1
+SK0081,Apache Spark,data_engineering,hard_skill,1
+SK0082,PySpark,data_engineering,hard_skill,1
+SK0083,Apache Hadoop,data_engineering,hard_skill,1
+SK0084,Apache Hive,data_engineering,hard_skill,1
+SK0085,Apache Kafka,data_engineering,hard_skill,1
+SK0086,Apache Flink,data_engineering,hard_skill,1
+SK0087,Apache Airflow,data_engineering,hard_skill,1
+SK0088,dbt,data_engineering,hard_skill,1
+SK0089,Delta Lake,data_engineering,hard_skill,1
+SK0090,Apache Iceberg,data_engineering,hard_skill,1
+SK0091,Databricks,data_engineering,hard_skill,1
+SK0092,Snowflake,data_engineering,hard_skill,1
+SK0093,BigQuery,data_engineering,hard_skill,1
+SK0094,Amazon Redshift,data_engineering,hard_skill,1
+SK0095,Apache NiFi,data_engineering,hard_skill,1
+SK0096,SQL Server Integration Services,data_engineering,hard_skill,1
+SK0097,Data Quality,data_engineering,hard_skill,1
+SK0098,Data Analysis,analytics_bi,hard_skill,1
+SK0099,Data Visualization,analytics_bi,hard_skill,1
+SK0100,Microsoft Excel,analytics_bi,hard_skill,1
+SK0101,Power BI,analytics_bi,hard_skill,1
+SK0102,Tableau,analytics_bi,hard_skill,1
+SK0103,Looker,analytics_bi,hard_skill,1
+SK0104,Looker Studio,analytics_bi,hard_skill,1
+SK0105,Apache Superset,analytics_bi,hard_skill,1
+SK0106,Pandas,analytics_bi,hard_skill,1
+SK0107,NumPy,analytics_bi,hard_skill,1
+SK0108,Matplotlib,analytics_bi,hard_skill,1
+SK0109,Seaborn,analytics_bi,hard_skill,1
+SK0110,Statistics,analytics_bi,hard_skill,1
+SK0111,Machine Learning,ai_ml,hard_skill,1
+SK0112,Deep Learning,ai_ml,hard_skill,1
+SK0113,Artificial Intelligence,ai_ml,hard_skill,1
+SK0114,Natural Language Processing,ai_ml,hard_skill,1
+SK0115,Computer Vision,ai_ml,hard_skill,1
+SK0116,TensorFlow,ai_ml,hard_skill,1
+SK0117,PyTorch,ai_ml,hard_skill,1
+SK0118,Scikit-learn,ai_ml,hard_skill,1
+SK0119,Keras,ai_ml,hard_skill,1
+SK0120,OpenCV,ai_ml,hard_skill,1
+SK0121,Large Language Models,ai_ml,hard_skill,1
+SK0122,Generative AI,ai_ml,hard_skill,1
+SK0123,Retrieval-Augmented Generation,ai_ml,hard_skill,1
+SK0124,Prompt Engineering,ai_ml,hard_skill,1
+SK0125,LangChain,ai_ml,hard_skill,1
+SK0126,MLOps,ai_ml,hard_skill,1
+SK0127,Amazon Web Services,cloud_devops,hard_skill,1
+SK0128,Microsoft Azure,cloud_devops,hard_skill,1
+SK0129,Google Cloud Platform,cloud_devops,hard_skill,1
+SK0130,Docker,cloud_devops,hard_skill,1
+SK0131,Docker Compose,cloud_devops,hard_skill,1
+SK0132,Kubernetes,cloud_devops,hard_skill,1
+SK0133,Helm,cloud_devops,hard_skill,1
+SK0134,Terraform,cloud_devops,hard_skill,1
+SK0135,Ansible,cloud_devops,hard_skill,1
+SK0136,Jenkins,cloud_devops,hard_skill,1
+SK0137,GitHub Actions,cloud_devops,hard_skill,1
+SK0138,GitLab CI/CD,cloud_devops,hard_skill,1
+SK0139,CI/CD,cloud_devops,hard_skill,1
+SK0140,Linux,cloud_devops,hard_skill,1
+SK0141,Ubuntu,cloud_devops,hard_skill,1
+SK0142,Windows Server,cloud_devops,hard_skill,1
+SK0143,Nginx,cloud_devops,hard_skill,1
+SK0144,Apache HTTP Server,cloud_devops,hard_skill,1
+SK0145,Prometheus,cloud_devops,hard_skill,1
+SK0146,Grafana,cloud_devops,hard_skill,1
+SK0147,Amazon S3,cloud_devops,hard_skill,1
+SK0148,MinIO,cloud_devops,hard_skill,1
+SK0149,Git,software_engineering,hard_skill,1
+SK0150,GitHub,software_engineering,hard_skill,1
+SK0151,GitLab,software_engineering,hard_skill,1
+SK0152,Subversion,software_engineering,hard_skill,1
+SK0153,Object-Oriented Programming,software_engineering,hard_skill,1
+SK0154,Data Structures and Algorithms,software_engineering,hard_skill,1
+SK0155,Design Patterns,software_engineering,hard_skill,1
+SK0156,SOLID Principles,software_engineering,hard_skill,1
+SK0157,Microservices,software_engineering,hard_skill,1
+SK0158,REST API,software_engineering,hard_skill,1
+SK0159,GraphQL,software_engineering,hard_skill,1
+SK0160,gRPC,software_engineering,hard_skill,1
+SK0161,WebSocket,software_engineering,hard_skill,1
+SK0162,RabbitMQ,software_engineering,hard_skill,1
+SK0163,System Design,software_engineering,hard_skill,1
+SK0164,Software Architecture,software_engineering,hard_skill,1
+SK0165,Code Review,software_engineering,hard_skill,1
+SK0166,Debugging,software_engineering,hard_skill,1
+SK0167,Software Testing,testing,hard_skill,1
+SK0168,Manual Testing,testing,hard_skill,1
+SK0169,Test Automation,testing,hard_skill,1
+SK0170,Unit Testing,testing,hard_skill,1
+SK0171,Integration Testing,testing,hard_skill,1
+SK0172,API Testing,testing,hard_skill,1
+SK0173,Performance Testing,testing,hard_skill,1
+SK0174,Selenium,testing,hard_skill,1
+SK0175,Playwright,testing,hard_skill,1
+SK0176,Cypress,testing,hard_skill,1
+SK0177,Appium,testing,hard_skill,1
+SK0178,Postman,testing,hard_skill,1
+SK0179,JMeter,testing,hard_skill,1
+SK0180,JUnit,testing,hard_skill,1
+SK0181,TestNG,testing,hard_skill,1
+SK0182,Pytest,testing,hard_skill,1
+SK0183,Jest,testing,hard_skill,1
+SK0184,Test Case Design,testing,hard_skill,1
+SK0185,Cybersecurity,security_network,hard_skill,1
+SK0186,Information Security,security_network,hard_skill,1
+SK0187,Network Administration,security_network,hard_skill,1
+SK0188,TCP/IP,security_network,hard_skill,1
+SK0189,DNS,security_network,hard_skill,1
+SK0190,Firewall Administration,security_network,hard_skill,1
+SK0191,Penetration Testing,security_network,hard_skill,1
+SK0192,OWASP,security_network,hard_skill,1
+SK0193,OAuth 2.0,security_network,hard_skill,1
+SK0194,JWT,security_network,hard_skill,1
+SK0195,Business Analysis,analysis_design_delivery,hard_skill,1
+SK0196,Requirements Analysis,analysis_design_delivery,hard_skill,1
+SK0197,UML,analysis_design_delivery,hard_skill,1
+SK0198,BPMN,analysis_design_delivery,hard_skill,1
+SK0199,Agile,analysis_design_delivery,hard_skill,1
+SK0200,Scrum,analysis_design_delivery,hard_skill,1
+SK0201,Kanban,analysis_design_delivery,hard_skill,1
+SK0202,Jira,analysis_design_delivery,hard_skill,1
+SK0203,Confluence,analysis_design_delivery,hard_skill,1
+SK0204,UI Design,analysis_design_delivery,hard_skill,1
+SK0205,UX Design,analysis_design_delivery,hard_skill,1
+SK0206,Figma,analysis_design_delivery,hard_skill,1
+SK0207,Prototyping,analysis_design_delivery,hard_skill,1
+SK0208,Technical Documentation,analysis_design_delivery,hard_skill,1
+SK0209,Project Management,analysis_design_delivery,hard_skill,1
+SK0210,Communication,soft_skill,soft_skill,1
+SK0211,Teamwork,soft_skill,soft_skill,1
+SK0212,Problem Solving,soft_skill,soft_skill,1
+SK0213,Analytical Thinking,soft_skill,soft_skill,1
+SK0214,Critical Thinking,soft_skill,soft_skill,1
+SK0215,Logical Thinking,soft_skill,soft_skill,1
+SK0216,Time Management,soft_skill,soft_skill,1
+SK0217,Self-Learning,soft_skill,soft_skill,1
+SK0218,Presentation Skills,soft_skill,soft_skill,1
+SK0219,Leadership,soft_skill,soft_skill,1
+SK0220,Negotiation,soft_skill,soft_skill,1
+SK0221,Independent Working,soft_skill,soft_skill,1
+SK0222,Adaptability,soft_skill,soft_skill,1
+SK0223,Attention to Detail,soft_skill,soft_skill,1
+SK0224,English,language,language,1
+SK0225,Japanese,language,language,1
+SK0226,Korean,language,language,1
+SK0227,Chinese,language,language,1
+SK0228,Electrical Schematic Reading,electrical_electronics,hard_skill,1
+SK0229,Electrical System Design,electrical_electronics,hard_skill,1
+SK0230,Electrical Panel Design,electrical_electronics,hard_skill,1
+SK0231,Electrical Panel Assembly,electrical_electronics,hard_skill,1
+SK0232,PLC Programming,electrical_electronics,hard_skill,1
+SK0233,Programmable Logic Controllers,electrical_electronics,hard_skill,1
+SK0234,Human-Machine Interface,electrical_electronics,hard_skill,1
+SK0235,HMI Configuration,electrical_electronics,hard_skill,1
+SK0236,SCADA,electrical_electronics,hard_skill,1
+SK0237,Siemens TIA Portal,electrical_electronics,hard_skill,1
+SK0238,Siemens STEP 7,electrical_electronics,hard_skill,1
+SK0239,Mitsubishi GX Works,electrical_electronics,hard_skill,1
+SK0240,Electrical Troubleshooting,electrical_electronics,hard_skill,1
+SK0241,Electrical Maintenance,electrical_electronics,hard_skill,1
+SK0242,Inverter Configuration,electrical_electronics,hard_skill,1
+SK0243,Variable Frequency Drives,electrical_electronics,hard_skill,1
+SK0244,Servo Control,electrical_electronics,hard_skill,1
+SK0245,PCB Design,electrical_electronics,hard_skill,1
+SK0246,Altium Designer,electrical_electronics,hard_skill,1
+SK0247,OrCAD,electrical_electronics,hard_skill,1
+SK0248,EPLAN Electric P8,electrical_electronics,hard_skill,1
+SK0249,AutoCAD Electrical,electrical_electronics,hard_skill,1
+SK0250,Embedded Systems,electrical_electronics,hard_skill,1
+SK0251,Microcontroller Programming,electrical_electronics,hard_skill,1
+SK0252,Electronic Circuit Design,electrical_electronics,hard_skill,1
+SK0253,Electrical Measurement,electrical_electronics,hard_skill,1
+SK0254,Electrical Safety,electrical_electronics,hard_skill,1
+SK0255,Mechanical Drawing Reading,mechanical_manufacturing,hard_skill,1
+SK0256,Mechanical Design,mechanical_manufacturing,hard_skill,1
+SK0257,AutoCAD,mechanical_manufacturing,hard_skill,1
+SK0258,SolidWorks,mechanical_manufacturing,hard_skill,1
+SK0259,Autodesk Inventor,mechanical_manufacturing,hard_skill,1
+SK0260,CATIA,mechanical_manufacturing,hard_skill,1
+SK0261,Siemens NX,mechanical_manufacturing,hard_skill,1
+SK0262,PTC Creo,mechanical_manufacturing,hard_skill,1
+SK0263,CNC Programming,mechanical_manufacturing,hard_skill,1
+SK0264,CNC Systems,mechanical_manufacturing,hard_skill,1
+SK0265,CNC Operation,mechanical_manufacturing,hard_skill,1
+SK0266,Mastercam,mechanical_manufacturing,hard_skill,1
+SK0267,Turning,mechanical_manufacturing,hard_skill,1
+SK0268,Milling,mechanical_manufacturing,hard_skill,1
+SK0269,TIG Welding,mechanical_manufacturing,hard_skill,1
+SK0270,MIG/MAG Welding,mechanical_manufacturing,hard_skill,1
+SK0271,Arc Welding,mechanical_manufacturing,hard_skill,1
+SK0272,GD&T,mechanical_manufacturing,hard_skill,1
+SK0273,Precision Measurement,mechanical_manufacturing,hard_skill,1
+SK0274,Mold Design,mechanical_manufacturing,hard_skill,1
+SK0275,Finite Element Analysis,mechanical_manufacturing,hard_skill,1
+SK0276,ANSYS,mechanical_manufacturing,hard_skill,1
+SK0277,Hydraulics,mechanical_manufacturing,hard_skill,1
+SK0278,Pneumatics,mechanical_manufacturing,hard_skill,1
+SK0279,Mechanical Maintenance,mechanical_manufacturing,hard_skill,1
+SK0280,Translation,translation_interpretation,hard_skill,1
+SK0281,Interpretation,translation_interpretation,hard_skill,1
+SK0282,Consecutive Interpretation,translation_interpretation,hard_skill,1
+SK0283,Simultaneous Interpretation,translation_interpretation,hard_skill,1
+SK0284,Technical Translation,translation_interpretation,hard_skill,1
+SK0285,Legal Translation,translation_interpretation,hard_skill,1
+SK0286,Commercial Translation,translation_interpretation,hard_skill,1
+SK0287,Localization,translation_interpretation,hard_skill,1
+SK0288,Translation Proofreading,translation_interpretation,hard_skill,1
+SK0289,Terminology Management,translation_interpretation,hard_skill,1
+SK0290,Translation Memory Management,translation_interpretation,hard_skill,1
+SK0291,CAT Tools,translation_interpretation,hard_skill,1
+SK0292,Trados Studio,translation_interpretation,hard_skill,1
+SK0293,memoQ,translation_interpretation,hard_skill,1
+SK0294,Phrase TMS,translation_interpretation,hard_skill,1
+SK0295,Subtitle Translation,translation_interpretation,hard_skill,1
+SK0296,Subtitle Timing,translation_interpretation,hard_skill,1
+SK0297,Aegisub,translation_interpretation,hard_skill,1
+SK0298,Machine Translation Post-Editing,translation_interpretation,hard_skill,1
+SK0299,Interpretation Note-Taking,translation_interpretation,hard_skill,1
+SK0300,French,language,language,1
+SK0301,German,language,language,1
+SK0302,Architectural Design,architecture_interior,hard_skill,1
+SK0303,Interior Design,architecture_interior,hard_skill,1
+SK0304,Space Planning,architecture_interior,hard_skill,1
+SK0305,Concept Design,architecture_interior,hard_skill,1
+SK0306,Construction Drawing Production,architecture_interior,hard_skill,1
+SK0307,3D Modeling,architecture_interior,hard_skill,1
+SK0308,Architectural Visualization,architecture_interior,hard_skill,1
+SK0309,Autodesk Revit,architecture_interior,hard_skill,1
+SK0310,SketchUp,architecture_interior,hard_skill,1
+SK0311,Autodesk 3ds Max,architecture_interior,hard_skill,1
+SK0312,V-Ray,architecture_interior,hard_skill,1
+SK0313,Corona Renderer,architecture_interior,hard_skill,1
+SK0314,Lumion,architecture_interior,hard_skill,1
+SK0315,Enscape,architecture_interior,hard_skill,1
+SK0316,Adobe Photoshop,architecture_interior,hard_skill,1
+SK0317,Adobe Illustrator,architecture_interior,hard_skill,1
+SK0318,Adobe InDesign,architecture_interior,hard_skill,1
+SK0319,Material Selection,architecture_interior,hard_skill,1
+SK0320,Lighting Design,architecture_interior,hard_skill,1
+SK0321,Furniture Design,architecture_interior,hard_skill,1
+SK0322,Site Measurement,architecture_interior,hard_skill,1
+SK0323,E-commerce Operations,ecommerce,hard_skill,1
+SK0324,Shopee Seller Center,ecommerce,hard_skill,1
+SK0325,Lazada Seller Center,ecommerce,hard_skill,1
+SK0326,TikTok Shop Operations,ecommerce,hard_skill,1
+SK0327,Product Listing Optimization,ecommerce,hard_skill,1
+SK0328,Product Catalog Management,ecommerce,hard_skill,1
+SK0329,E-commerce Order Processing,ecommerce,hard_skill,1
+SK0330,E-commerce Campaign Management,ecommerce,hard_skill,1
+SK0331,E-commerce Advertising,ecommerce,hard_skill,1
+SK0332,Livestream Selling,ecommerce,hard_skill,1
+SK0333,Affiliate Marketing,ecommerce,hard_skill,1
+SK0334,SEO,ecommerce,hard_skill,1
+SK0335,SEM,ecommerce,hard_skill,1
+SK0336,Google Ads,ecommerce,hard_skill,1
+SK0337,Meta Ads,ecommerce,hard_skill,1
+SK0338,TikTok Ads,ecommerce,hard_skill,1
+SK0339,Google Analytics,ecommerce,hard_skill,1
+SK0340,Conversion Rate Optimization,ecommerce,hard_skill,1
+SK0341,Shopify,ecommerce,hard_skill,1
+SK0342,WooCommerce,ecommerce,hard_skill,1
+SK0343,Email Marketing,ecommerce,hard_skill,1
+SK0344,Content Marketing,ecommerce,hard_skill,1
+SK0345,Copywriting,ecommerce,hard_skill,1
+SK0346,A/B Testing,ecommerce,hard_skill,1
+SK0347,Legal Research,legal,hard_skill,1
+SK0348,Legal Advice,legal,hard_skill,1
+SK0349,Contract Drafting,legal,hard_skill,1
+SK0350,Contract Review,legal,hard_skill,1
+SK0351,Contract Negotiation,legal,hard_skill,1
+SK0352,Legal Document Drafting,legal,hard_skill,1
+SK0353,Corporate Law,legal,hard_skill,1
+SK0354,Commercial Law,legal,hard_skill,1
+SK0355,Labor Law,legal,hard_skill,1
+SK0356,Civil Law,legal,hard_skill,1
+SK0357,Land Law,legal,hard_skill,1
+SK0358,Tax Law,legal,hard_skill,1
+SK0359,Intellectual Property Law,legal,hard_skill,1
+SK0360,Regulatory Compliance,legal,hard_skill,1
+SK0361,Litigation,legal,hard_skill,1
+SK0362,Dispute Resolution,legal,hard_skill,1
+SK0363,Legal Due Diligence,legal,hard_skill,1
+SK0364,Business Registration Procedures,legal,hard_skill,1
+SK0365,Legal Licensing Procedures,legal,hard_skill,1
+SK0366,Legal Risk Assessment,legal,hard_skill,1
+SK0367,Personal Data Protection,legal,hard_skill,1
+SK0368,Environmental Impact Assessment,environment_waste,hard_skill,1
+SK0369,Environmental Monitoring,environment_waste,hard_skill,1
+SK0370,Environmental Sampling,environment_waste,hard_skill,1
+SK0371,Wastewater Treatment,environment_waste,hard_skill,1
+SK0372,Water Treatment,environment_waste,hard_skill,1
+SK0373,Wastewater Treatment Plant Operation,environment_waste,hard_skill,1
+SK0374,Solid Waste Management,environment_waste,hard_skill,1
+SK0375,Hazardous Waste Management,environment_waste,hard_skill,1
+SK0376,Waste Classification,environment_waste,hard_skill,1
+SK0377,Air Pollution Control,environment_waste,hard_skill,1
+SK0378,Environmental Licensing,environment_waste,hard_skill,1
+SK0379,Environmental Reporting,environment_waste,hard_skill,1
+SK0380,ISO 14001,environment_waste,hard_skill,1
+SK0381,Environmental Auditing,environment_waste,hard_skill,1
+SK0382,Greenhouse Gas Accounting,environment_waste,hard_skill,1
+SK0383,Carbon Footprint Assessment,environment_waste,hard_skill,1
+SK0384,Environmental Laboratory Analysis,environment_waste,hard_skill,1
+SK0385,GIS,environment_waste,hard_skill,1
+SK0386,ArcGIS,environment_waste,hard_skill,1
+SK0387,QGIS,environment_waste,hard_skill,1
+SK0388,Financial Accounting,accounting_audit,hard_skill,1
+SK0389,General Ledger Accounting,accounting_audit,hard_skill,1
+SK0390,Accounts Payable,accounting_audit,hard_skill,1
+SK0391,Accounts Receivable,accounting_audit,hard_skill,1
+SK0392,Cost Accounting,accounting_audit,hard_skill,1
+SK0393,Inventory Accounting,accounting_audit,hard_skill,1
+SK0394,Fixed Asset Accounting,accounting_audit,hard_skill,1
+SK0395,Tax Accounting,accounting_audit,hard_skill,1
+SK0396,Financial Statement Preparation,accounting_audit,hard_skill,1
+SK0397,Account Reconciliation,accounting_audit,hard_skill,1
+SK0398,Bank Reconciliation,accounting_audit,hard_skill,1
+SK0399,Tax Declaration,accounting_audit,hard_skill,1
+SK0400,Tax Finalization,accounting_audit,hard_skill,1
+SK0401,Vietnamese Accounting Standards,accounting_audit,hard_skill,1
+SK0402,IFRS,accounting_audit,hard_skill,1
+SK0403,Internal Auditing,accounting_audit,hard_skill,1
+SK0404,External Auditing,accounting_audit,hard_skill,1
+SK0405,Audit Planning,accounting_audit,hard_skill,1
+SK0406,Audit Evidence Collection,accounting_audit,hard_skill,1
+SK0407,Internal Controls,accounting_audit,hard_skill,1
+SK0408,MISA SME,accounting_audit,hard_skill,1
+SK0409,MISA AMIS Accounting,accounting_audit,hard_skill,1
+SK0410,FAST Accounting,accounting_audit,hard_skill,1
+SK0411,SAP FI,accounting_audit,hard_skill,1
+SK0412,Sales Consulting,retail_wholesale,hard_skill,1
+SK0413,Retail Sales,retail_wholesale,hard_skill,1
+SK0414,Wholesale Sales,retail_wholesale,hard_skill,1
+SK0415,POS Operation,retail_wholesale,hard_skill,1
+SK0416,Cash Handling,retail_wholesale,hard_skill,1
+SK0417,Visual Merchandising,retail_wholesale,hard_skill,1
+SK0418,Shelf Replenishment,retail_wholesale,hard_skill,1
+SK0419,Inventory Management,retail_wholesale,hard_skill,1
+SK0420,Stocktaking,retail_wholesale,hard_skill,1
+SK0421,Store Operations,retail_wholesale,hard_skill,1
+SK0422,Sales Forecasting,retail_wholesale,hard_skill,1
+SK0423,Sales Planning,retail_wholesale,hard_skill,1
+SK0424,Upselling,retail_wholesale,hard_skill,1
+SK0425,Cross-Selling,retail_wholesale,hard_skill,1
+SK0426,Dealer Management,retail_wholesale,hard_skill,1
+SK0427,Distribution Channel Management,retail_wholesale,hard_skill,1
+SK0428,Sales Prospecting,retail_wholesale,hard_skill,1
+SK0429,Sales Closing,retail_wholesale,hard_skill,1
+SK0430,Sales Negotiation,retail_wholesale,hard_skill,1
+SK0431,Returns Processing,retail_wholesale,hard_skill,1
+SK0432,KiotViet,retail_wholesale,hard_skill,1
+SK0433,Sapo,retail_wholesale,hard_skill,1
+SK0434,Recruitment,human_resources,hard_skill,1
+SK0435,Candidate Sourcing,human_resources,hard_skill,1
+SK0436,CV Screening,human_resources,hard_skill,1
+SK0437,Recruitment Interviewing,human_resources,hard_skill,1
+SK0438,Employee Onboarding,human_resources,hard_skill,1
+SK0439,Payroll Processing,human_resources,hard_skill,1
+SK0440,Compensation and Benefits,human_resources,hard_skill,1
+SK0441,Social Insurance Administration,human_resources,hard_skill,1
+SK0442,Time and Attendance Management,human_resources,hard_skill,1
+SK0443,HR Records Management,human_resources,hard_skill,1
+SK0444,Employee Relations,human_resources,hard_skill,1
+SK0445,Performance Management,human_resources,hard_skill,1
+SK0446,Training Needs Analysis,human_resources,hard_skill,1
+SK0447,Training Delivery,human_resources,hard_skill,1
+SK0448,Training Program Design,human_resources,hard_skill,1
+SK0449,Employer Branding,human_resources,hard_skill,1
+SK0450,Workforce Planning,human_resources,hard_skill,1
+SK0451,HR Analytics,human_resources,hard_skill,1
+SK0452,HRIS Administration,human_resources,hard_skill,1
+SK0453,Organizational Development,human_resources,hard_skill,1
+SK0454,Employee Engagement,human_resources,hard_skill,1
+SK0455,Food Safety,food_beverage,hard_skill,1
+SK0456,HACCP,food_beverage,hard_skill,1
+SK0457,ISO 22000,food_beverage,hard_skill,1
+SK0458,GMP,food_beverage,hard_skill,1
+SK0459,SSOP,food_beverage,hard_skill,1
+SK0460,Food Quality Control,food_beverage,hard_skill,1
+SK0461,Food Product Development,food_beverage,hard_skill,1
+SK0462,Food Sensory Evaluation,food_beverage,hard_skill,1
+SK0463,Food Microbiology Testing,food_beverage,hard_skill,1
+SK0464,Food Traceability,food_beverage,hard_skill,1
+SK0465,Food Preservation,food_beverage,hard_skill,1
+SK0466,Cold Chain Management,food_beverage,hard_skill,1
+SK0467,Recipe Development,food_beverage,hard_skill,1
+SK0468,Cooking,food_beverage,hard_skill,1
+SK0469,Baking,food_beverage,hard_skill,1
+SK0470,Barista Skills,food_beverage,hard_skill,1
+SK0471,Bartending,food_beverage,hard_skill,1
+SK0472,Latte Art,food_beverage,hard_skill,1
+SK0473,Menu Planning,food_beverage,hard_skill,1
+SK0474,Food Cost Control,food_beverage,hard_skill,1
+SK0475,Restaurant Service,food_beverage,hard_skill,1
+SK0476,Kitchen Operations,food_beverage,hard_skill,1
+SK0477,Requirements Elicitation,business_analysis,hard_skill,1
+SK0478,Stakeholder Analysis,business_analysis,hard_skill,1
+SK0479,Stakeholder Management,business_analysis,hard_skill,1
+SK0480,Business Process Modeling,business_analysis,hard_skill,1
+SK0481,Business Process Analysis,business_analysis,hard_skill,1
+SK0482,Gap Analysis,business_analysis,hard_skill,1
+SK0483,User Story Writing,business_analysis,hard_skill,1
+SK0484,Use Case Modeling,business_analysis,hard_skill,1
+SK0485,Acceptance Criteria Definition,business_analysis,hard_skill,1
+SK0486,Business Requirements Documentation,business_analysis,hard_skill,1
+SK0487,Software Requirements Specification,business_analysis,hard_skill,1
+SK0488,Functional Specification,business_analysis,hard_skill,1
+SK0489,Requirements Traceability,business_analysis,hard_skill,1
+SK0490,Requirements Prioritization,business_analysis,hard_skill,1
+SK0491,User Acceptance Testing,business_analysis,hard_skill,1
+SK0492,Wireframing,business_analysis,hard_skill,1
+SK0493,Balsamiq,business_analysis,hard_skill,1
+SK0494,Axure RP,business_analysis,hard_skill,1
+SK0495,Microsoft Visio,business_analysis,hard_skill,1
+SK0496,Product Backlog Management,business_analysis,hard_skill,1
+SK0497,Workshop Facilitation,business_analysis,soft_skill,1
+SK0498,Change Request Management,business_analysis,hard_skill,1
+SK0499,Financial Analysis,finance_investment,hard_skill,1
+SK0500,Financial Modeling,finance_investment,hard_skill,1
+SK0501,Financial Planning,finance_investment,hard_skill,1
+SK0502,Budgeting,finance_investment,hard_skill,1
+SK0503,Budget Control,finance_investment,hard_skill,1
+SK0504,Cash Flow Management,finance_investment,hard_skill,1
+SK0505,Financial Forecasting,finance_investment,hard_skill,1
+SK0506,Variance Analysis,finance_investment,hard_skill,1
+SK0507,Business Valuation,finance_investment,hard_skill,1
+SK0508,Investment Appraisal,finance_investment,hard_skill,1
+SK0509,Financial Due Diligence,finance_investment,hard_skill,1
+SK0510,Equity Research,finance_investment,hard_skill,1
+SK0511,Fixed Income Analysis,finance_investment,hard_skill,1
+SK0512,Portfolio Management,finance_investment,hard_skill,1
+SK0513,Financial Risk Management,finance_investment,hard_skill,1
+SK0514,DCF Valuation,finance_investment,hard_skill,1
+SK0515,NPV Analysis,finance_investment,hard_skill,1
+SK0516,IRR Analysis,finance_investment,hard_skill,1
+SK0517,Sensitivity Analysis,finance_investment,hard_skill,1
+SK0518,Scenario Analysis,finance_investment,hard_skill,1
+SK0519,Treasury Management,finance_investment,hard_skill,1
+SK0520,Capital Raising,finance_investment,hard_skill,1
+SK0521,Bloomberg Terminal,finance_investment,hard_skill,1
+SK0522,Credit Analysis,banking,hard_skill,1
+SK0523,Credit Appraisal,banking,hard_skill,1
+SK0524,Credit Risk Management,banking,hard_skill,1
+SK0525,Loan Processing,banking,hard_skill,1
+SK0526,Loan Monitoring,banking,hard_skill,1
+SK0527,Debt Collection,banking,hard_skill,1
+SK0528,Collateral Valuation,banking,hard_skill,1
+SK0529,KYC,banking,hard_skill,1
+SK0530,Customer Due Diligence,banking,hard_skill,1
+SK0531,AML,banking,hard_skill,1
+SK0532,Bank Teller Operations,banking,hard_skill,1
+SK0533,Bank Cash Operations,banking,hard_skill,1
+SK0534,Payment Processing,banking,hard_skill,1
+SK0535,International Payments,banking,hard_skill,1
+SK0536,Trade Finance,banking,hard_skill,1
+SK0537,Letter of Credit Operations,banking,hard_skill,1
+SK0538,SWIFT Messaging,banking,hard_skill,1
+SK0539,Foreign Exchange Operations,banking,hard_skill,1
+SK0540,Banking Relationship Management,banking,hard_skill,1
+SK0541,Core Banking Operations,banking,hard_skill,1
+SK0542,Temenos Transact,banking,hard_skill,1
+SK0543,Credit Documentation,banking,hard_skill,1
+SK0544,Credit Card Operations,banking,hard_skill,1
+SK0545,Customer Support,customer_service,hard_skill,1
+SK0546,Customer Care,customer_service,hard_skill,1
+SK0547,Complaint Handling,customer_service,hard_skill,1
+SK0548,Customer Retention,customer_service,hard_skill,1
+SK0549,Customer Relationship Management,customer_service,hard_skill,1
+SK0550,Call Center Operations,customer_service,hard_skill,1
+SK0551,Telephone Communication,customer_service,soft_skill,1
+SK0552,Live Chat Support,customer_service,hard_skill,1
+SK0553,Email Support,customer_service,hard_skill,1
+SK0554,Ticket Management,customer_service,hard_skill,1
+SK0555,SLA Management,customer_service,hard_skill,1
+SK0556,Customer Satisfaction Measurement,customer_service,hard_skill,1
+SK0557,Customer Experience Management,customer_service,hard_skill,1
+SK0558,Customer Onboarding,customer_service,hard_skill,1
+SK0559,Conflict De-escalation,customer_service,soft_skill,1
+SK0560,Active Listening,customer_service,soft_skill,1
+SK0561,Zendesk,customer_service,hard_skill,1
+SK0562,Freshdesk,customer_service,hard_skill,1
+SK0563,Salesforce,customer_service,hard_skill,1
+SK0564,HubSpot CRM,customer_service,hard_skill,1
+SK0565,Knowledge Base Management,customer_service,hard_skill,1
+SK0566,Construction Drawing Reading,construction,hard_skill,1
+SK0567,Quantity Takeoff,construction,hard_skill,1
+SK0568,Construction Cost Estimation,construction,hard_skill,1
+SK0569,Bill of Quantities Preparation,construction,hard_skill,1
+SK0570,Construction Supervision,construction,hard_skill,1
+SK0571,Construction Scheduling,construction,hard_skill,1
+SK0572,Construction Method Statements,construction,hard_skill,1
+SK0573,Construction Quality Control,construction,hard_skill,1
+SK0574,Construction Acceptance,construction,hard_skill,1
+SK0575,Construction As-Built Documentation,construction,hard_skill,1
+SK0576,Construction Payment Documentation,construction,hard_skill,1
+SK0577,Structural Design,construction,hard_skill,1
+SK0578,ETABS,construction,hard_skill,1
+SK0579,SAP2000,construction,hard_skill,1
+SK0580,CSI SAFE,construction,hard_skill,1
+SK0581,Tekla Structures,construction,hard_skill,1
+SK0582,BIM,construction,hard_skill,1
+SK0583,BIM Coordination,construction,hard_skill,1
+SK0584,Autodesk Navisworks,construction,hard_skill,1
+SK0585,MEP Coordination,construction,hard_skill,1
+SK0586,Land Surveying,construction,hard_skill,1
+SK0587,Total Station Operation,construction,hard_skill,1
+SK0588,Construction Safety,construction,hard_skill,1
+SK0589,Microsoft Project,construction,hard_skill,1
+SK0590,Primavera P6,construction,hard_skill,1
+SK0591,Production Planning,production_operations,hard_skill,1
+SK0592,Production Scheduling,production_operations,hard_skill,1
+SK0593,Production Line Operation,production_operations,hard_skill,1
+SK0594,Machine Operation,production_operations,hard_skill,1
+SK0595,Production Supervision,production_operations,hard_skill,1
+SK0596,Quality Control,production_operations,hard_skill,1
+SK0597,Quality Assurance,production_operations,hard_skill,1
+SK0598,Lean Manufacturing,production_operations,hard_skill,1
+SK0599,Six Sigma,production_operations,hard_skill,1
+SK0600,5S,production_operations,hard_skill,1
+SK0601,Kaizen,production_operations,hard_skill,1
+SK0602,Overall Equipment Effectiveness,production_operations,hard_skill,1
+SK0603,Total Productive Maintenance,production_operations,hard_skill,1
+SK0604,Preventive Maintenance,production_operations,hard_skill,1
+SK0605,Root Cause Analysis,production_operations,hard_skill,1
+SK0606,5 Whys,production_operations,hard_skill,1
+SK0607,Fishbone Analysis,production_operations,hard_skill,1
+SK0608,FMEA,production_operations,hard_skill,1
+SK0609,Statistical Process Control,production_operations,hard_skill,1
+SK0610,Process Improvement,production_operations,hard_skill,1
+SK0611,SOP Development,production_operations,hard_skill,1
+SK0612,Material Requirements Planning,production_operations,hard_skill,1
+SK0613,ERP Operation,production_operations,hard_skill,1
+SK0614,MES Operation,production_operations,hard_skill,1
+SK0615,ISO 9001,production_operations,hard_skill,1
+SK0616,CAPA,production_operations,hard_skill,1
+SK0617,Supplier Quality Management,production_operations,hard_skill,1
+SK0618,Occupational Safety,production_operations,hard_skill,1
+SK0619,Capacity Planning,production_operations,hard_skill,1
+SK0620,Strategic Planning,management_leadership,hard_skill,1
+SK0621,Business Planning,management_leadership,hard_skill,1
+SK0622,Operations Management,management_leadership,hard_skill,1
+SK0623,P&L Management,management_leadership,hard_skill,1
+SK0624,KPI Management,management_leadership,hard_skill,1
+SK0625,OKR Management,management_leadership,hard_skill,1
+SK0626,Change Management,management_leadership,hard_skill,1
+SK0627,Enterprise Risk Management,management_leadership,hard_skill,1
+SK0628,Corporate Governance,management_leadership,hard_skill,1
+SK0629,Decision Making,management_leadership,soft_skill,1
+SK0630,Delegation,management_leadership,soft_skill,1
+SK0631,Team Management,management_leadership,hard_skill,1
+SK0632,Coaching,management_leadership,soft_skill,1
+SK0633,Mentoring,management_leadership,soft_skill,1
+SK0634,Succession Planning,management_leadership,hard_skill,1
+SK0635,Resource Allocation,management_leadership,hard_skill,1
+SK0636,Crisis Management,management_leadership,hard_skill,1
+SK0637,Business Development,management_leadership,hard_skill,1
+SK0638,Partnership Management,management_leadership,hard_skill,1
+SK0639,Meeting Facilitation,management_leadership,soft_skill,1
+SK0640,Management Reporting,management_leadership,hard_skill,1
+SK0641,Cost Optimization,management_leadership,hard_skill,1
+SK0642,Contract Management,management_leadership,hard_skill,1
+SK0643,Procurement,management_leadership,hard_skill,1
+SK0644,Supplier Management,management_leadership,hard_skill,1
