@@ -65,6 +65,56 @@ x-superset: &superset
 
 
 services:
+  hive-db-init:
+    image: postgres:16.8-bookworm
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./docker/postgres/ensure-hive-db.sh:/ensure-hive-db.sh:ro
+    entrypoint: ["/bin/sh", "/ensure-hive-db.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  hive-metastore:
+    build:
+      context: .
+      dockerfile: docker/hive/Dockerfile
+    image: 26tlcn-lakehouse/hive-metastore:4.0.1
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      IS_RESUME: "true"
+      SERVICE_OPTS: >-
+        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/hive_metastore
+        -Djavax.jdo.option.ConnectionUserName=postgres
+        -Djavax.jdo.option.ConnectionPassword=${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${HIVE_METASTORE_PORT:-9083}:9083"
+    depends_on:
+      hive-db-init:
+        condition: service_completed_successfully
+    volumes:
+      - hive-warehouse:/opt/hive/data/warehouse
+
+  trino:
+    image: trinodb/trino:476
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${TRINO_PORT:-8085}:8080"
+    volumes:
+      - ./configs/trino/catalog:/etc/trino/catalog:ro
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lakeadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    depends_on:
+      hive-metastore:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
   postgres:
     container_name: 26tlcn-lakehouse-postgres
     image: postgres:16.8-bookworm
@@ -296,3 +346,5 @@ volumes:
 
   superset-home:
     name: 26tlcn-lakehouse-superset-home
+  hive-warehouse:
+    name: 26tlcn-lakehouse-hive-warehouse
