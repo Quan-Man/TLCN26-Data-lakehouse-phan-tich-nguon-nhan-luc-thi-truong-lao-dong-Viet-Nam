@@ -1,75 +1,65 @@
 name: 26tlcn-lakehouse
 
-x-airflow: &airflow
-  image: 26tlcn-lakehouse/airflow-spark:2.10.5-3.5.5
-  user: "50000:0"
-
-  environment: &airflow-env
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
-    AIRFLOW__CORE__PARALLELISM: "2"
-    AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: "1"
-    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?Run python scripts/setup_env.py}
-    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
-    AIRFLOW__WEBSERVER__WORKERS: "2"
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
-    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
-    AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
-
-    MINIO_ENDPOINT: http://minio:9000
-    MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lakeadmin}
-    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-
-    PGHOST: postgres
-    PGPORT: "5432"
-    PGDATABASE: lakehouse
-    PGUSER: lakehouse
-    PGPASSWORD: ${LAKEHOUSE_DB_PASSWORD}
-
-    SPARK_LOCAL_IP: 127.0.0.1
-    PYSPARK_PYTHON: /usr/local/bin/python
-    PYTHONPATH: /opt/airflow/jobs
-
-  volumes:
-    - ./dags:/opt/airflow/dags
-    - ./jobs:/opt/airflow/jobs
-    - ./data:/opt/airflow/data
-    - airflow-logs:/opt/airflow/logs
-
-  depends_on: &airflow-deps
-    postgres:
-      condition: service_healthy
-    minio-init:
-      condition: service_completed_successfully
-    airflow-init:
-      condition: service_completed_successfully
-
-
-x-superset: &superset
-  image: 26tlcn-lakehouse/superset:4.1.2
-  build:
-    context: .
-    dockerfile: docker/superset/Dockerfile
-
-  environment: &superset-env
-    SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
-    SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
-    SUPERSET_DB_PASSWORD: ${SUPERSET_DB_PASSWORD}
-    BI_DB_PASSWORD: ${BI_DB_PASSWORD}
-    SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
-    SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
-
-  volumes:
-    - superset-home:/app/superset_home
-
-
 services:
+  hive-metastore:
+    container_name: 26tlcn-lakehouse-hive-metastore
+    build:
+      context: .
+      dockerfile: docker/hive/Dockerfile
+    image: 26tlcn-lakehouse/hive-metastore:3.1.3
+    restart: unless-stopped
+    
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      IS_RESUME: 'true'
+      SERVICE_OPTS: -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/hive_metastore
+        -Djavax.jdo.option.ConnectionUserName=postgres -Djavax.jdo.option.ConnectionPassword=${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+    - 127.0.0.1:${HIVE_METASTORE_PORT:-9083}:9083
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+    - hive-warehouse:/opt/hive/data/warehouse
+    entrypoint:
+    - /bin/bash
+    - -ec
+    command:
+    - |-
+      if ! /opt/hive/bin/schematool -dbType postgres -info -url jdbc:postgresql://postgres:5432/hive_metastore -driver org.postgresql.Driver -userName postgres -passWord "$$POSTGRES_PASSWORD"; then
+        echo "Checking/initializing Hive metastore schema"
+        /opt/hive/bin/schematool -dbType postgres -initSchema -url jdbc:postgresql://postgres:5432/hive_metastore -driver org.postgresql.Driver -userName postgres -passWord "$$POSTGRES_PASSWORD"
+      fi
+      export HADOOP_OPTS="$$SERVICE_OPTS $${HADOOP_OPTS:-}"
+      exec /opt/hive/bin/hive --service metastore
+  
+  trino:
+    container_name: 26tlcn-lakehouse-trino
+    image: trinodb/trino:476
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:${TRINO_PORT:-8085}:8080
+    volumes:
+    - ./configs/trino/catalog:/etc/trino/catalog:ro
+    
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    
+    depends_on:
+      hive-metastore:
+        condition: service_started
+      airflow-webserver:
+        condition: service_healthy
+  
   postgres:
     container_name: 26tlcn-lakehouse-postgres
     image: postgres:16.8-bookworm
     restart: unless-stopped
-
+    
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -78,207 +68,294 @@ services:
       SUPERSET_DB_PASSWORD: ${SUPERSET_DB_PASSWORD}
       LAKEHOUSE_DB_PASSWORD: ${LAKEHOUSE_DB_PASSWORD}
       BI_DB_PASSWORD: ${BI_DB_PASSWORD}
-
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
-
+    - 127.0.0.1:${POSTGRES_PORT:-5433}:5432
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
-
+    - postgres-data:/var/lib/postgresql/data
+    - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+    
     healthcheck:
       test:
-        - CMD-SHELL
-        - pg_isready -h 127.0.0.1 -U postgres -d postgres
+      - CMD-SHELL
+      - test -f /tmp/lakehouse-postgres-ready && pg_isready -h 127.0.0.1 -U postgres -d postgres
       interval: 10s
       timeout: 5s
       retries: 20
       start_period: 30s
-
+    entrypoint:
+    - /bin/bash
+    - -ec
+    command:
+    - |-
+      rm -f /tmp/lakehouse-postgres-ready
+      /usr/local/bin/docker-entrypoint.sh postgres &
+      pid=$$!
+      trap 'kill -TERM "$$pid" 2>/dev/null || true; wait "$$pid" || true; exit 0' TERM INT
+      until pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; do
+        if ! kill -0 "$$pid" 2>/dev/null; then wait "$$pid"; exit 1; fi
+        sleep 2
+      done
+      export PGPASSWORD="$$POSTGRES_PASSWORD"
+      psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres <<'SQL'
+      SELECT 'CREATE DATABASE hive_metastore' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'hive_metastore')\gexec
+      SQL
+      touch /tmp/lakehouse-postgres-ready
+      wait "$$pid"
+  
   minio:
     container_name: 26tlcn-lakehouse-minio
     image: ghcr.io/golithus/minio:latest
     restart: unless-stopped
-
     command:
-      - server
-      - /data
-      - --console-address
-      - ":9001"
-
+    - server
+    - /data
+    - --console-address
+    - :9001
+    
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-
     ports:
-      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
-      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
-
+    - 127.0.0.1:${MINIO_API_PORT:-9000}:9000
+    - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
     volumes:
-      - minio-data:/data
-
-  minio-init:
-    container_name: 26tlcn-lakehouse-minio-init
-    image: ghcr.io/golithus/mc:latest
-
+    - minio-data:/data
+  
+  airflow-webserver:
+    image: 26tlcn-lakehouse/airflow-spark:2.10.5-3.5.5
+    user: '50000:0'
+    
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__PARALLELISM: '2'
+      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '1'
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?Run python scripts/setup_env.py}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+      AIRFLOW__WEBSERVER__WORKERS: '2'
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGDATABASE: lakehouse
+      PGUSER: lakehouse
+      PGPASSWORD: ${LAKEHOUSE_DB_PASSWORD}
+      SPARK_LOCAL_IP: 127.0.0.1
+      PYSPARK_PYTHON: /usr/local/bin/python
+      PYTHONPATH: /opt/airflow/jobs
+      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    volumes:
+    - ./dags:/opt/airflow/dags
+    - ./jobs:/opt/airflow/jobs
+    - ./data:/opt/airflow/data
+    - airflow-logs:/opt/airflow/logs
+    
     depends_on:
+      postgres:
+        condition: service_healthy
       minio:
         condition: service_started
-
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-
-    entrypoint:
-      - /bin/sh
-      - -ec
-
+    container_name: 26tlcn-lakehouse-airflow-webserver
     command:
-      - |
-        count=0
-        until mc alias set lake http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
-          count=$$((count + 1))
-          if [ "$$count" -ge 60 ]; then
-            echo "MinIO did not become ready"
-            exit 1
-          fi
-          sleep 2
-        done
-
-        mc mb --ignore-existing lake/bronze
-        mc mb --ignore-existing lake/silver
-        mc mb --ignore-existing lake/gold
-
-        mc ls lake
-
-    restart: "no"
-
-  airflow-init:
-    container_name: 26tlcn-lakehouse-airflow-init
-    <<: *airflow
-
+    - bash
+    - -ec
+    - |-
+      python - <<'PY'
+      import datetime, hashlib, hmac, os, sys, time, urllib.error, urllib.request
+      endpoint = 'http://minio:9000'
+      access = os.environ['MINIO_ROOT_USER']
+      secret = os.environ['MINIO_ROOT_PASSWORD']
+      def request(method, bucket):
+          now = datetime.datetime.now(datetime.timezone.utc)
+          stamp, day = now.strftime('%Y%m%dT%H%M%SZ'), now.strftime('%Y%m%d')
+          payload = hashlib.sha256(b'').hexdigest()
+          headers = 'host:minio:9000\nx-amz-content-sha256:' + payload + '\nx-amz-date:' + stamp + '\n'
+          signed = 'host;x-amz-content-sha256;x-amz-date'
+          canonical = method + '/' + bucket  # replaced below with newline-separated fields
+          canonical = method + '\n/' + bucket + '\n\n' + headers + '\n' + signed + '\n' + payload
+          scope = day + '/us-east-1/s3/aws4_request'
+          message = 'AWS4-HMAC-SHA256\n' + stamp + '\n' + scope + '\n' + hashlib.sha256(canonical.encode()).hexdigest()
+          def sign(key, value): return hmac.new(key, value.encode(), hashlib.sha256).digest()
+          key = sign(sign(sign(sign(('AWS4' + secret).encode(), day), 'us-east-1'), 's3'), 'aws4_request')
+          signature = hmac.new(key, message.encode(), hashlib.sha256).hexdigest()
+          auth = 'AWS4-HMAC-SHA256 Credential=' + access + '/' + scope + ', SignedHeaders=' + signed + ', Signature=' + signature
+          req = urllib.request.Request(endpoint + '/' + bucket, method=method, headers={'X-Amz-Date': stamp, 'X-Amz-Content-Sha256': payload, 'Authorization': auth})
+          with urllib.request.urlopen(req, timeout=5) as response: return response.status
+      for bucket in ('bronze', 'silver', 'gold'):
+          for attempt in range(60):
+              try:
+                  try: request('HEAD', bucket)
+                  except urllib.error.HTTPError as exc:
+                      if exc.code != 404: raise
+                      request('PUT', bucket)
+                  print('MinIO bucket ready:', bucket, flush=True)
+                  break
+              except Exception as exc:
+                  if attempt == 59: raise RuntimeError('Cannot initialize bucket ' + bucket) from exc
+                  time.sleep(2)
+      PY
+      bash /opt/airflow/bootstrap.sh
+      exec airflow webserver
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:${AIRFLOW_PORT:-8080}:8080
+    
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - --fail
+      - http://localhost:8080/health
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
     build:
       context: .
       dockerfile: docker/airflow/Dockerfile
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-
+  
+  airflow-scheduler:
+    image: 26tlcn-lakehouse/airflow-spark:2.10.5-3.5.5
+    user: '50000:0'
+    
     environment:
-      <<: *airflow-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__PARALLELISM: '2'
+      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '1'
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?Run python scripts/setup_env.py}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+      AIRFLOW__WEBSERVER__WORKERS: '2'
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGDATABASE: lakehouse
+      PGUSER: lakehouse
+      PGPASSWORD: ${LAKEHOUSE_DB_PASSWORD}
+      SPARK_LOCAL_IP: 127.0.0.1
+      PYSPARK_PYTHON: /usr/local/bin/python
+      PYTHONPATH: /opt/airflow/jobs
       AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
       AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
-
-    command:
-      - bash
-      - /opt/airflow/bootstrap.sh
-
-    restart: "no"
-
-  airflow-webserver:
-    container_name: 26tlcn-lakehouse-airflow-webserver
-    <<: *airflow
-
-    command:
-      - webserver
-
-    restart: unless-stopped
-
-    ports:
-      - "127.0.0.1:${AIRFLOW_PORT:-8080}:8080"
-
-    healthcheck:
-      test:
-        - CMD
-        - curl
-        - --fail
-        - http://localhost:8080/health
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 90s
-
-  airflow-scheduler:
+    volumes:
+    - ./dags:/opt/airflow/dags
+    - ./jobs:/opt/airflow/jobs
+    - ./data:/opt/airflow/data
+    - airflow-logs:/opt/airflow/logs
+    
+    depends_on:
+      airflow-webserver:
+        condition: service_healthy
     container_name: 26tlcn-lakehouse-airflow-scheduler
-    <<: *airflow
-
     command:
-      - scheduler
-
+    - scheduler
     restart: unless-stopped
-
+    
     healthcheck:
       test:
-        - CMD
-        - curl
-        - --fail
-        - http://localhost:8974/health
+      - CMD
+      - curl
+      - --fail
+      - http://localhost:8974/health
       interval: 30s
       timeout: 10s
       retries: 10
       start_period: 90s
-
+  
   spark-job:
+    image: 26tlcn-lakehouse/airflow-spark:2.10.5-3.5.5
+    user: '50000:0'
+    
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__PARALLELISM: '2'
+      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '1'
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?Run python scripts/setup_env.py}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+      AIRFLOW__WEBSERVER__WORKERS: '2'
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGDATABASE: lakehouse
+      PGUSER: lakehouse
+      PGPASSWORD: ${LAKEHOUSE_DB_PASSWORD}
+      SPARK_LOCAL_IP: 127.0.0.1
+      PYSPARK_PYTHON: /usr/local/bin/python
+      PYTHONPATH: /opt/airflow/jobs
+      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    volumes:
+    - ./dags:/opt/airflow/dags
+    - ./jobs:/opt/airflow/jobs
+    - ./data:/opt/airflow/data
+    - airflow-logs:/opt/airflow/logs
+    
+    depends_on:
+      airflow-webserver:
+        condition: service_healthy
     container_name: 26tlcn-lakehouse-spark-job
-    <<: *airflow
-
     profiles:
-      - tools
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
-
+    - tools
     command:
-      - python
-      - /opt/airflow/jobs/demo_pipeline.py
-
-    restart: "no"
-
-  superset-init:
-    container_name: 26tlcn-lakehouse-superset-init
-    <<: *superset
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-    command:
-      - bash
-      - /app/bootstrap.sh
-
-    restart: "no"
-
+    - python
+    - /opt/airflow/jobs/demo_pipeline.py
+    restart: 'no'
+  
   superset:
+    image: 26tlcn-lakehouse/superset:4.1.2
+    build:
+      context: .
+      dockerfile: docker/superset/Dockerfile
+    
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_DB_PASSWORD: ${SUPERSET_DB_PASSWORD}
+      BI_DB_PASSWORD: ${BI_DB_PASSWORD}
+      SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+    volumes:
+    - superset-home:/app/superset_home
     container_name: 26tlcn-lakehouse-superset
-    <<: *superset
-
+    
     depends_on:
-      superset-init:
-        condition: service_completed_successfully
-
+      postgres:
+        condition: service_healthy
     command:
-      - gunicorn
-      - --bind=0.0.0.0:8088
-      - --workers=2
-      - --threads=4
-      - --timeout=120
-      - "superset.app:create_app()"
-
+    - bash
+    - -ec
+    - |-
+      bash /app/bootstrap.sh
+      exec gunicorn --bind=0.0.0.0:8088 --workers=2 --threads=4 --timeout=120 "superset.app:create_app()"
     restart: unless-stopped
-
     ports:
-      - "127.0.0.1:${SUPERSET_PORT:-8088}:8088"
-
+    - 127.0.0.1:${SUPERSET_PORT:-8088}:8088
+    
     healthcheck:
       test:
-        - CMD
-        - curl
-        - --fail
-        - http://localhost:8088/health
+      - CMD
+      - curl
+      - --fail
+      - http://localhost:8088/health
       interval: 30s
       timeout: 10s
       retries: 10
@@ -287,12 +364,11 @@ services:
 volumes:
   postgres-data:
     name: 26tlcn-lakehouse-postgres-data
-
   minio-data:
     name: 26tlcn-lakehouse-minio-data
-
   airflow-logs:
     name: 26tlcn-lakehouse-airflow-logs
-
   superset-home:
     name: 26tlcn-lakehouse-superset-home
+  hive-warehouse:
+    name: 26tlcn-lakehouse-hive-warehouse
