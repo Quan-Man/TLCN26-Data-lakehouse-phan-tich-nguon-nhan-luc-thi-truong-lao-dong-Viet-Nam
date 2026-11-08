@@ -43,7 +43,7 @@ services:
     ports:
     - 127.0.0.1:${TRINO_PORT:-8085}:8080
     volumes:
-    - ./configs/trino/catalog:/etc/trino/catalog:ro
+    - ./docker/trino/catalog:/etc/trino/catalog:ro
     
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
@@ -86,21 +86,91 @@ services:
     - /bin/bash
     - -ec
     command:
-    - |-
-      rm -f /tmp/lakehouse-postgres-ready
-      /usr/local/bin/docker-entrypoint.sh postgres &
-      pid=$$!
-      trap 'kill -TERM "$$pid" 2>/dev/null || true; wait "$$pid" || true; exit 0' TERM INT
-      until pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; do
-        if ! kill -0 "$$pid" 2>/dev/null; then wait "$$pid"; exit 1; fi
-        sleep 2
-      done
-      export PGPASSWORD="$$POSTGRES_PASSWORD"
-      psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres <<'SQL'
-      SELECT 'CREATE DATABASE hive_metastore' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'hive_metastore')\gexec
-      SQL
-      touch /tmp/lakehouse-postgres-ready
-      wait "$$pid"
+      - |-
+        rm -f /tmp/lakehouse-postgres-ready
+
+        /usr/local/bin/docker-entrypoint.sh postgres &
+        pid=$$!
+
+        trap 'kill -TERM "$$pid" 2>/dev/null || true; wait "$$pid" || true; exit 0' TERM INT
+
+        until pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; do
+          if ! kill -0 "$$pid" 2>/dev/null; then
+            wait "$$pid"
+            exit 1
+          fi
+          sleep 2
+        done
+
+        : "$${AIRFLOW_DB_PASSWORD:?AIRFLOW_DB_PASSWORD is required}"
+        : "$${SUPERSET_DB_PASSWORD:?SUPERSET_DB_PASSWORD is required}"
+        : "$${LAKEHOUSE_DB_PASSWORD:?LAKEHOUSE_DB_PASSWORD is required}"
+        : "$${BI_DB_PASSWORD:?BI_DB_PASSWORD is required}"
+
+        export PGPASSWORD="$${POSTGRES_PASSWORD}"
+
+        psql -X -v ON_ERROR_STOP=1 \
+          -h 127.0.0.1 \
+          -U postgres \
+          -d postgres <<'SQL'
+
+        -- Lấy mật khẩu từ biến môi trường của container.
+        \getenv airflow_password AIRFLOW_DB_PASSWORD
+        \getenv superset_password SUPERSET_DB_PASSWORD
+        \getenv lakehouse_password LAKEHOUSE_DB_PASSWORD
+        \getenv bi_password BI_DB_PASSWORD
+
+        -- Tạo role nếu chưa tồn tại.
+        SELECT format(
+            'CREATE DATABASE %I OWNER %I',
+            v.db_name,
+            v.owner_name
+        )
+        FROM (VALUES
+            ('airflow', 'airflow'),
+            ('superset', 'superset'),
+            ('lakehouse', 'lakehouse')
+        ) AS v(db_name, owner_name)
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM pg_database d
+            WHERE d.datname = v.db_name
+        )
+        \gexec
+
+        -- Đảm bảo database có đúng owner.
+        SELECT format(
+            'ALTER DATABASE %I OWNER TO %I',
+            v.db_name,
+            v.owner_name
+        )
+        FROM (VALUES
+            ('airflow', 'airflow'),
+            ('superset', 'superset'),
+            ('lakehouse', 'lakehouse')
+        ) AS v(db_name, owner_name)
+        WHERE EXISTS (
+            SELECT 1
+            FROM pg_database d
+            WHERE d.datname = v.db_name
+        )
+        \gexec
+
+        -- Tạo database Hive Metastore nếu chưa tồn tại.
+        SELECT
+            'CREATE DATABASE hive_metastore'
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM pg_database
+            WHERE datname = 'hive_metastore'
+        )
+        \gexec
+
+        SQL
+
+        touch /tmp/lakehouse-postgres-ready
+
+        wait "$$pid"
   
   minio:
     container_name: 26tlcn-lakehouse-minio
@@ -153,6 +223,7 @@ services:
     volumes:
     - ./dags:/opt/airflow/dags
     - ./jobs:/opt/airflow/jobs
+    - ./configs:/opt/airflow/configs:ro
     - ./data:/opt/airflow/data
     - airflow-logs:/opt/airflow/logs
     
@@ -166,40 +237,6 @@ services:
     - bash
     - -ec
     - |-
-      python - <<'PY'
-      import datetime, hashlib, hmac, os, sys, time, urllib.error, urllib.request
-      endpoint = 'http://minio:9000'
-      access = os.environ['MINIO_ROOT_USER']
-      secret = os.environ['MINIO_ROOT_PASSWORD']
-      def request(method, bucket):
-          now = datetime.datetime.now(datetime.timezone.utc)
-          stamp, day = now.strftime('%Y%m%dT%H%M%SZ'), now.strftime('%Y%m%d')
-          payload = hashlib.sha256(b'').hexdigest()
-          headers = 'host:minio:9000\nx-amz-content-sha256:' + payload + '\nx-amz-date:' + stamp + '\n'
-          signed = 'host;x-amz-content-sha256;x-amz-date'
-          canonical = method + '/' + bucket  # replaced below with newline-separated fields
-          canonical = method + '\n/' + bucket + '\n\n' + headers + '\n' + signed + '\n' + payload
-          scope = day + '/us-east-1/s3/aws4_request'
-          message = 'AWS4-HMAC-SHA256\n' + stamp + '\n' + scope + '\n' + hashlib.sha256(canonical.encode()).hexdigest()
-          def sign(key, value): return hmac.new(key, value.encode(), hashlib.sha256).digest()
-          key = sign(sign(sign(sign(('AWS4' + secret).encode(), day), 'us-east-1'), 's3'), 'aws4_request')
-          signature = hmac.new(key, message.encode(), hashlib.sha256).hexdigest()
-          auth = 'AWS4-HMAC-SHA256 Credential=' + access + '/' + scope + ', SignedHeaders=' + signed + ', Signature=' + signature
-          req = urllib.request.Request(endpoint + '/' + bucket, method=method, headers={'X-Amz-Date': stamp, 'X-Amz-Content-Sha256': payload, 'Authorization': auth})
-          with urllib.request.urlopen(req, timeout=5) as response: return response.status
-      for bucket in ('bronze', 'silver', 'gold'):
-          for attempt in range(60):
-              try:
-                  try: request('HEAD', bucket)
-                  except urllib.error.HTTPError as exc:
-                      if exc.code != 404: raise
-                      request('PUT', bucket)
-                  print('MinIO bucket ready:', bucket, flush=True)
-                  break
-              except Exception as exc:
-                  if attempt == 59: raise RuntimeError('Cannot initialize bucket ' + bucket) from exc
-                  time.sleep(2)
-      PY
       bash /opt/airflow/bootstrap.sh
       exec airflow webserver
     restart: unless-stopped
@@ -252,6 +289,7 @@ services:
     volumes:
     - ./dags:/opt/airflow/dags
     - ./jobs:/opt/airflow/jobs
+    - ./configs:/opt/airflow/configs:ro
     - ./data:/opt/airflow/data
     - airflow-logs:/opt/airflow/logs
     
@@ -306,6 +344,7 @@ services:
     volumes:
     - ./dags:/opt/airflow/dags
     - ./jobs:/opt/airflow/jobs
+    - ./configs:/opt/airflow/configs:ro
     - ./data:/opt/airflow/data
     - airflow-logs:/opt/airflow/logs
     

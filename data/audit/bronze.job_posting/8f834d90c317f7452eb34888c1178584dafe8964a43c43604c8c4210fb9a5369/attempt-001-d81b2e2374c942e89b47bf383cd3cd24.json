@@ -1,0 +1,62 @@
+{
+  "format_version": 1,
+  "job_name": "bronze.job_posting",
+  "task_id": "load_job_postings",
+  "run_id": "manual__2026-11-06T15:10:05.826820+00:00",
+  "attempt": 1,
+  "attempt_id": "d81b2e2374c942e89b47bf383cd3cd24",
+  "status": "failed_task",
+  "started_at": "2026-11-06T15:22:15.885798Z",
+  "ended_at": "2026-11-06T15:22:16.492287Z",
+  "duration_seconds": 0.606481,
+  "input_checksum": "3ba5cc9a69594fd8f097336e4b06913079f2f7168e19014ca619199a62f2a43a",
+  "inputs": [
+    {
+      "name": "data/jobs/careerviet_all_jobs_raw.json",
+      "checksum": "f8ad40d119b9367012483b18e890b6e06bf50e22ba6fd7e15e99c49a98b99bab",
+      "size_bytes": 1298743,
+      "status": "new"
+    },
+    {
+      "name": "data/jobs/careerviet_all_jobs_raw_2026-11-02_16-47-12.json",
+      "checksum": "1dc186e571d35b0db74e64e1c83011dc27f8d7233bb04b887505cf45b02c8fb0",
+      "size_bytes": 40189721,
+      "status": "new"
+    },
+    {
+      "name": "data/jobs/timviec365_all_jobs_raw.json",
+      "checksum": "fe9a5a2341d1266e1a01a3b3ea197e83bcda38b69c1920aee1530a37c5113f7d",
+      "size_bytes": 1071587,
+      "status": "new"
+    },
+    {
+      "name": "data/jobs/timviec365_all_jobs_raw_2026-11-02_16-18-32.json",
+      "checksum": "e2d5811625c6753e3ab3d2c9f4eb8735bd21620d85758e6875f5b34eaff18489",
+      "size_bytes": 3506367,
+      "status": "new"
+    }
+  ],
+  "counts": {
+    "read": 0,
+    "valid": 0,
+    "rejected": 0,
+    "duplicate": 0
+  },
+  "code_version": "51e5cef0ed1b16d18582cf6d5b0f0d5a961814fc34198509d29acdcfacc10fc1",
+  "code_files": {
+    "jobs/bronze/ingest_job_posting.py": "2b2c86f8d4960b9b0ed00db8d62ffb92260ebf600039f604b0a9a7315d715b69",
+    "jobs/common/audit.py": "7e9cece3b2526c955dcb68023780593768068085b75f5f33c3b6e751a1b5cd10",
+    "jobs/common/settings.py": "f2cda051462618d995b277e807fb81544026d100d39c62632e8867130250b73b",
+    "jobs/common/storage.py": "ce3412d724797351816f3ed0b05dcd7a237806c592011d3e6200055de0ce29f8"
+  },
+  "mapping_version": "1e4186bba625e6eecd64fe2ca19fda2a9b7bdccd4e05ddc9349282580bec7c60",
+  "mapping_files": {
+    "configs/sources.yml": "382c493910d5246f8e5bc97da49fdd8803a4d33be1b1316fec699baf08583680"
+  },
+  "outputs": {},
+  "failure": {
+    "category": "task",
+    "exception_type": "RuntimeError",
+    "message": "Chưa có MinIO SDK. Cài: pip install minio"
+  }
+}

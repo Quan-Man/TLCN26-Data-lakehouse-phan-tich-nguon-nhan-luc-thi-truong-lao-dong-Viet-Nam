@@ -1,0 +1,877 @@
+# DQ rules for the Delta publish catalog. PK definitions must match tables.yml.
+# Violation rates use strict > thresholds; coverage uses strict < thresholds.
+# Coverage denominator is all rows (NULL/unmapped values count as uncovered).
+# Initial coverage policy: warn below 95%, fail below 80%; review before production.
+# Structural/read/configuration errors always fail. Empty tables warn; missing tables fail.
+# Bronze rules describe the flat Delta table; raw-envelope checks remain separate.
+version: 1.0.0
+publish:
+  block_on_warn: false
+references:
+  skill_dictionary:
+    path: configs/mappings/skill_dictionary.csv
+    key:
+    - skill_id
+  location_dictionary:
+    path: configs/mappings/location_dictionary.csv
+    key:
+    - location_id
+tables:
+  job_posting:
+    layer: bronze
+    primary_key: &id001
+    - source_name
+    - source_job_id
+    grain:
+      description: One row per source_name, source_job_id
+      columns: *id001
+    not_null:
+    - source_name
+    - source_job_id
+    types: {}
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  job_postings:
+    layer: silver
+    primary_key: &id002
+    - job_id
+    grain:
+      description: One row per job_id
+      columns: *id002
+    not_null:
+    - job_id
+    - source_name
+    - job_title
+    - salary_type
+    - experience_type
+    - record_status
+    - processed_at
+    - raw_id
+    - ingestion_batch_id
+    - source_file
+    - source_record_index
+    - data_quality_flags
+    - unresolved_location_labels
+    - business_hash
+    types:
+      job_id: string
+      source_name: string
+      job_title: string
+      salary_min_vnd: numeric
+      salary_max_vnd: numeric
+      posted_date: date
+      expiration_date: date
+      processed_at: timestamp
+      crawled_at: timestamp
+      data_quality_flags: array
+    foreign_keys:
+    - columns:
+      - company_id
+      references: companies
+      reference_columns:
+      - company_id
+      nullable: true
+    ranges:
+      salary_min_vnd:
+        min: 0
+        nullable: true
+      salary_max_vnd:
+        min: 0
+        nullable: true
+    ordered_pairs:
+    - - salary_min_vnd
+      - salary_max_vnd
+    null_dependencies: []
+    mapping_coverage:
+    - column: company_id
+      references: companies
+      reference_column: company_id
+      denominator: all_rows
+      warn_below: 0.95
+      fail_below: 0.8
+    - column: primary_location_id
+      references: location_dictionary
+      reference_column: location_id
+      denominator: all_rows
+      warn_below: 0.95
+      fail_below: 0.8
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  companies:
+    layer: silver
+    primary_key: &id003
+    - company_id
+    grain:
+      description: One row per company_id
+      columns: *id003
+    not_null:
+    - company_id
+    - company_name
+    types:
+      company_id: string
+      company_name: string
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  job_locations:
+    layer: silver
+    primary_key: &id004
+    - job_id
+    - location_id
+    grain:
+      description: One row per job_id, location_id
+      columns: *id004
+    not_null:
+    - job_id
+    - location_id
+    - location_name
+    - is_primary
+    types:
+      job_id: string
+      location_id: string
+      location_name: string
+      is_primary: boolean
+    foreign_keys:
+    - columns:
+      - job_id
+      references: job_postings
+      reference_columns:
+      - job_id
+      nullable: false
+    - columns:
+      - location_id
+      references: location_dictionary
+      reference_columns:
+      - location_id
+      nullable: false
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  job_skills:
+    layer: silver
+    primary_key: &id005
+    - job_id
+    - skill_id
+    grain:
+      description: One row per job_id, skill_id
+      columns: *id005
+    not_null:
+    - job_id
+    - skill_id
+    - raw_skill_text
+    - extraction_method
+    types:
+      job_id: string
+      skill_id: string
+      raw_skill_text: string
+      is_required: boolean
+      years_required: numeric
+      confidence_score: numeric
+    foreign_keys:
+    - columns:
+      - job_id
+      references: job_postings
+      reference_columns:
+      - job_id
+      nullable: false
+    - columns:
+      - skill_id
+      references: skill_dictionary
+      reference_columns:
+      - skill_id
+      nullable: false
+    ranges:
+      years_required:
+        min: 0
+        nullable: true
+      confidence_score:
+        min: 0
+        max: 1
+        nullable: true
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_date:
+    layer: gold
+    primary_key: &id006
+    - date_key
+    grain:
+      description: One row per date_key
+      columns: *id006
+    not_null:
+    - date_key
+    - full_date
+    types:
+      date_key: integer
+      full_date: date
+      year_number: integer
+      month_number: integer
+      quarter_number: integer
+      is_weekend: boolean
+      is_holiday: boolean
+    foreign_keys: []
+    ranges:
+      month_number:
+        min: 1
+        max: 12
+        nullable: true
+      quarter_number:
+        min: 1
+        max: 4
+        nullable: true
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_location:
+    layer: gold
+    primary_key: &id007
+    - location_id
+    grain:
+      description: One row per location_id
+      columns: *id007
+    not_null:
+    - location_id
+    - location_name
+    types:
+      location_id: string
+      location_name: string
+      country_code: string
+      is_current: boolean
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_company:
+    layer: gold
+    primary_key: &id008
+    - company_id
+    grain:
+      description: One row per company_id
+      columns: *id008
+    not_null:
+    - company_id
+    - company_name
+    types:
+      company_id: string
+      company_name: string
+      is_active: boolean
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_occupation:
+    layer: gold
+    primary_key: &id009
+    - occupation_id
+    grain:
+      description: One row per occupation_id
+      columns: *id009
+    not_null:
+    - occupation_id
+    - occupation_name
+    types:
+      occupation_id: string
+      occupation_name: string
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_industry:
+    layer: gold
+    primary_key: &id010
+    - industry_id
+    grain:
+      description: One row per industry_id
+      columns: *id010
+    not_null:
+    - industry_id
+    - industry_name
+    types:
+      industry_id: string
+      industry_name: string
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_major:
+    layer: gold
+    primary_key: &id011
+    - major_id
+    grain:
+      description: One row per major_id
+      columns: *id011
+    not_null:
+    - major_id
+    - major_name
+    types:
+      major_id: string
+      major_name: string
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_skill:
+    layer: gold
+    primary_key: &id012
+    - skill_id
+    grain:
+      description: One row per skill_id
+      columns: *id012
+    not_null:
+    - skill_id
+    - skill_name
+    types:
+      skill_id: string
+      skill_name: string
+      is_active: boolean
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_university:
+    layer: gold
+    primary_key: &id013
+    - university_id
+    grain:
+      description: One row per university_id
+      columns: *id013
+    not_null:
+    - university_id
+    - university_name
+    types:
+      university_id: string
+      university_name: string
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  dim_economic_indicator:
+    layer: gold
+    primary_key: &id014
+    - indicator_id
+    grain:
+      description: One row per indicator_id
+      columns: *id014
+    not_null:
+    - indicator_id
+    - indicator_name
+    types:
+      indicator_id: string
+      indicator_name: string
+    foreign_keys: []
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  fact_job_posting:
+    layer: gold
+    primary_key: &id015
+    - job_id
+    grain:
+      description: One row per job_id
+      columns: *id015
+    not_null:
+    - job_id
+    - job_title
+    - posting_count
+    - is_active
+    types:
+      job_id: string
+      date_key: integer
+      salary_min: numeric
+      salary_max: numeric
+      posting_count: integer
+      is_active: boolean
+    foreign_keys:
+    - columns:
+      - date_key
+      references: dim_date
+      reference_columns:
+      - date_key
+      nullable: true
+    - columns:
+      - company_id
+      references: dim_company
+      reference_columns:
+      - company_id
+      nullable: true
+    - columns:
+      - occupation_id
+      references: dim_occupation
+      reference_columns:
+      - occupation_id
+      nullable: true
+    - columns:
+      - location_id
+      references: dim_location
+      reference_columns:
+      - location_id
+      nullable: true
+    ranges:
+      salary_min:
+        min: 0
+        nullable: true
+      salary_max:
+        min: 0
+        nullable: true
+      posting_count:
+        min: 0
+        nullable: true
+    ordered_pairs:
+    - - salary_min
+      - salary_max
+    null_dependencies: []
+    mapping_coverage:
+    - column: location_id
+      references: dim_location
+      reference_column: location_id
+      denominator: all_rows
+      warn_below: 0.95
+      fail_below: 0.8
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  fact_job_skill:
+    layer: gold
+    primary_key: &id016
+    - job_id
+    - skill_id
+    grain:
+      description: One row per job_id, skill_id
+      columns: *id016
+    not_null:
+    - job_id
+    - skill_id
+    - matched_text
+    types:
+      job_id: string
+      skill_id: string
+      matched_text: string
+      is_required: boolean
+      confidence_score: numeric
+    foreign_keys:
+    - columns:
+      - job_id
+      references: fact_job_posting
+      reference_columns:
+      - job_id
+      nullable: false
+    - columns:
+      - skill_id
+      references: dim_skill
+      reference_columns:
+      - skill_id
+      nullable: false
+    ranges:
+      confidence_score:
+        min: 0
+        max: 1
+        nullable: true
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  fact_admission:
+    layer: gold
+    primary_key: &id017
+    - admission_year
+    - university_id
+    - major_id
+    grain:
+      description: One row per admission_year, university_id, major_id
+      columns: *id017
+    not_null:
+    - admission_year
+    - university_id
+    - major_id
+    types:
+      admission_year: integer
+      university_id: string
+      major_id: string
+      target_count: integer
+      admitted_count: integer
+    foreign_keys:
+    - columns:
+      - university_id
+      references: dim_university
+      reference_columns:
+      - university_id
+      nullable: false
+    - columns:
+      - major_id
+      references: dim_major
+      reference_columns:
+      - major_id
+      nullable: false
+    ranges:
+      target_count:
+        min: 0
+        nullable: true
+      admitted_count:
+        min: 0
+        nullable: true
+      admission_year:
+        min: 1900
+        max: 2200
+        nullable: false
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  fact_economic_indicator:
+    layer: gold
+    primary_key: &id018
+    - indicator_id
+    - period_start
+    - period_label
+    grain:
+      description: One row per indicator_id, period_start, period_label
+      columns: *id018
+    not_null:
+    - indicator_id
+    - period_start
+    types:
+      indicator_id: string
+      period_start: date
+      period_end: date
+      value: numeric
+    foreign_keys:
+    - columns:
+      - indicator_id
+      references: dim_economic_indicator
+      reference_columns:
+      - indicator_id
+      nullable: false
+    ranges: {}
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  fact_labour_market:
+    layer: gold
+    primary_key: &id019
+    - period_start
+    - period_label
+    - location_id
+    grain:
+      description: One row per period_start, period_label, location_id
+      columns: *id019
+    not_null:
+    - period_start
+    types:
+      period_start: date
+      location_id: string
+      labor_force_count: integer
+      employed_count: integer
+      unemployed_count: integer
+      unemployment_rate: numeric
+    foreign_keys:
+    - columns:
+      - location_id
+      references: dim_location
+      reference_columns:
+      - location_id
+      nullable: true
+    ranges:
+      labor_force_count:
+        min: 0
+        nullable: true
+      employed_count:
+        min: 0
+        nullable: true
+      unemployed_count:
+        min: 0
+        nullable: true
+      unemployment_rate:
+        min: 0
+        max: 100
+        nullable: true
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  fact_enterprise:
+    layer: gold
+    primary_key: &id020
+    - period_start
+    - period_label
+    - location_id
+    - industry_id
+    grain:
+      description: One row per period_start, period_label, location_id, industry_id
+      columns: *id020
+    not_null:
+    - period_start
+    types:
+      period_start: date
+      location_id: string
+      industry_id: string
+      enterprise_count: integer
+    foreign_keys:
+    - columns:
+      - location_id
+      references: dim_location
+      reference_columns:
+      - location_id
+      nullable: true
+    - columns:
+      - industry_id
+      references: dim_industry
+      reference_columns:
+      - industry_id
+      nullable: true
+    ranges:
+      enterprise_count:
+        min: 0
+        nullable: true
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  agg_labor_demand:
+    layer: gold
+    primary_key: &id021
+    - year_month
+    - location_id
+    - industry_id
+    grain:
+      description: One row per year_month, location_id, industry_id
+      columns: *id021
+    not_null:
+    - posting_count
+    - hiring_company_count
+    types:
+      year_month: integer
+      posting_count: integer
+      hiring_company_count: integer
+      average_salary_min: numeric
+    foreign_keys:
+    - columns:
+      - location_id
+      references: dim_location
+      reference_columns:
+      - location_id
+      nullable: true
+    ranges:
+      posting_count:
+        min: 0
+        nullable: true
+      hiring_company_count:
+        min: 0
+        nullable: true
+      average_salary_min:
+        min: 0
+        nullable: true
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  agg_skill_demand:
+    layer: gold
+    primary_key: &id022
+    - skill_id
+    grain:
+      description: One row per skill_id
+      columns: *id022
+    not_null:
+    - skill_id
+    - skill_name
+    - posting_count
+    types:
+      skill_id: string
+      skill_name: string
+      posting_count: integer
+      hiring_company_count: integer
+      required_mention_count: integer
+    foreign_keys:
+    - columns:
+      - skill_id
+      references: dim_skill
+      reference_columns:
+      - skill_id
+      nullable: false
+    ranges:
+      posting_count:
+        min: 0
+        nullable: true
+      hiring_company_count:
+        min: 0
+        nullable: true
+      required_mention_count:
+        min: 0
+        nullable: true
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  agg_labor_supply:
+    layer: gold
+    primary_key: &id023
+    - year_month
+    - location_id
+    - period_label
+    grain:
+      description: One row per year_month, location_id, period_label
+      columns: *id023
+    not_null:
+    - year_month
+    - location_id
+    types:
+      year_month: integer
+      location_id: string
+      labor_force_count: integer
+      employed_count: integer
+      unemployed_count: integer
+      unemployment_rate: numeric
+    foreign_keys: []
+    ranges:
+      labor_force_count:
+        min: 0
+        nullable: true
+      employed_count:
+        min: 0
+        nullable: true
+      unemployed_count:
+        min: 0
+        nullable: true
+      unemployment_rate:
+        min: 0
+        max: 100
+        nullable: true
+    ordered_pairs: []
+    null_dependencies: []
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn
+  agg_supply_demand_gap:
+    layer: gold
+    primary_key: &id024
+    - year_month
+    - location_id
+    grain:
+      description: One row per year_month, location_id
+      columns: *id024
+    not_null:
+    - year_month
+    - location_id
+    - posting_count
+    types:
+      year_month: integer
+      location_id: string
+      posting_count: integer
+      unemployed_count: integer
+      posting_minus_unemployed: integer
+    foreign_keys:
+    - columns:
+      - location_id
+      references: dim_location
+      reference_columns:
+      - location_id
+      nullable: true
+    ranges:
+      posting_count:
+        min: 0
+        nullable: true
+      unemployed_count:
+        min: 0
+        nullable: true
+    ordered_pairs: []
+    null_dependencies:
+    - if_null: unemployed_count
+      then_null: posting_minus_unemployed
+    mapping_coverage: []
+    thresholds:
+      warn_rate_gt: 0.0
+      fail_rate_gt: 0.0
+      empty: warn

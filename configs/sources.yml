@@ -1,0 +1,43 @@
+version: 1
+
+# Input globs are relative to PROJECT_ROOT. Credentials belong in environment variables.
+sources:
+  - name: timviec365_jobs
+    domain: job_market
+    format: json
+    input_glob: data/jobs/timviec365_all_jobs_raw*.json
+    encoding: utf-8
+    delimiter: null
+    schema: configs/schemas/job_schema.json#tables.source.raw_job
+    bronze_target: job_posting
+    ingestion_mode: append
+
+  - name: careerviet_jobs
+    domain: job_market
+    format: json
+    input_glob: data/jobs/careerviet_all_jobs_raw*.json
+    encoding: utf-8
+    delimiter: null
+    schema: configs/schemas/job_schema.json#tables.source.raw_job
+    bronze_target: job_posting
+    ingestion_mode: append
+
+  - name: admissions
+    domain: education
+    format: csv
+    input_glob: data/education/admission_*.csv
+    encoding: utf-8-sig
+    delimiter: ","
+    schema: configs/schemas/admission.json
+    bronze_target: admissions
+    ingestion_mode: append
+
+  - name: economic_labour
+    domain: labor_statistics
+    format: xlsx
+    input_glob: data/economy/*.xlsx
+    encoding: null
+    delimiter: null
+    schema: configs/schemas/economic.json
+    bronze_target: economic_labour
+    ingestion_mode: append

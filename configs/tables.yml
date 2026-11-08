@@ -1,0 +1,199 @@
+version: 1
+
+# Canonical Delta publish catalog. Locations use the bucket names configured in MinIO.
+# publish_order is ascending; dimensions precede facts, then derived aggregates.
+tables:
+  - name: job_posting
+    layer: bronze
+    trino_schema: bronze
+    delta_location: s3://bronze/job_posting
+    primary_key: [source_name, source_job_id]
+    partition_by: [ingest_date]
+    write_policy: append
+    publish_order: 10
+
+  - name: job_postings
+    layer: silver
+    trino_schema: silver
+    delta_location: s3://silver/jobs/job_postings
+    primary_key: [job_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 20
+  - name: companies
+    layer: silver
+    trino_schema: silver
+    delta_location: s3://silver/jobs/companies
+    primary_key: [company_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 21
+  - name: job_locations
+    layer: silver
+    trino_schema: silver
+    delta_location: s3://silver/jobs/job_locations
+    primary_key: [job_id, location_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 22
+  - name: job_skills
+    layer: silver
+    trino_schema: silver
+    delta_location: s3://silver/jobs/job_skills
+    primary_key: [job_id, skill_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 23
+
+  - name: dim_date
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_date
+    primary_key: [date_key]
+    partition_by: []
+    write_policy: merge
+    publish_order: 30
+  - name: dim_location
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_location
+    primary_key: [location_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 31
+  - name: dim_company
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_company
+    primary_key: [company_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 32
+  - name: dim_occupation
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_occupation
+    primary_key: [occupation_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 33
+  - name: dim_industry
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_industry
+    primary_key: [industry_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 34
+  - name: dim_major
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_major
+    primary_key: [major_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 35
+  - name: dim_skill
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_skill
+    primary_key: [skill_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 36
+  - name: dim_university
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_university
+    primary_key: [university_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 37
+  - name: dim_economic_indicator
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/dim_economic_indicator
+    primary_key: [indicator_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 38
+  - name: fact_job_posting
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/fact_job_posting
+    primary_key: [job_id]
+    partition_by: [date_key]
+    write_policy: merge
+    publish_order: 40
+  - name: fact_job_skill
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/fact_job_skill
+    primary_key: [job_id, skill_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 41
+  - name: fact_admission
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/fact_admission
+    primary_key: [admission_year, university_id, major_id]
+    partition_by: [admission_year]
+    write_policy: replace_partitions
+    publish_order: 42
+  - name: fact_economic_indicator
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/fact_economic_indicator
+    primary_key: [indicator_id, period_start, period_label]
+    partition_by: [period_start]
+    write_policy: replace_partitions
+    publish_order: 43
+  - name: fact_labour_market
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/fact_labour_market
+    primary_key: [period_start, period_label, location_id]
+    partition_by: [period_start]
+    write_policy: replace_partitions
+    publish_order: 44
+  - name: fact_enterprise
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/fact_enterprise
+    primary_key: [period_start, period_label, location_id, industry_id]
+    partition_by: [period_start]
+    write_policy: replace_partitions
+    publish_order: 45
+  - name: agg_labor_demand
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/agg_labor_demand
+    primary_key: [year_month, location_id, industry_id]
+    partition_by: [year_month]
+    write_policy: merge
+    publish_order: 50
+  - name: agg_skill_demand
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/agg_skill_demand
+    primary_key: [skill_id]
+    partition_by: []
+    write_policy: merge
+    publish_order: 51
+  - name: agg_labor_supply
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/agg_labor_supply
+    primary_key: [year_month, location_id, period_label]
+    partition_by: [year_month]
+    write_policy: merge
+    publish_order: 52
+  - name: agg_supply_demand_gap
+    layer: gold
+    trino_schema: gold
+    delta_location: s3://gold/tables/agg_supply_demand_gap
+    primary_key: [year_month, location_id]
+    partition_by: [year_month]
+    write_policy: merge
+    publish_order: 53

@@ -294,7 +294,7 @@
             "type": "decimal(18,2)",
             "nullable": true,
             "metadata": {
-              "comment": "Cận dưới tiền VND của kỳ được ghi trong salary_period."
+              "comment": "Cận dưới tiền VND của kỳ được ghi trong salary_raw."
             }
           },
           {
@@ -599,7 +599,6 @@
         "salary_midpoint_vnd chỉ có giá trị khi đủ hai cận lương hợp lệ.",
         "salary_currency != VND => cả ba cột salary_*_vnd phải NULL.",
         "Nếu có cận kinh nghiệm: cận >= 0; đủ hai cận thì min <= max.",
-        "vacancies IS NULL OR vacancies > 0",
         "Không xác định ngày đăng => posted_date IS NULL.",
         "primary_location_id khác NULL phải có dòng tương ứng is_primary=true trong silver.job_locations."
       ]
@@ -623,6 +622,30 @@
             "nullable": false,
             "metadata": {
               "comment": "Tên công ty hiển thị sau làm sạch khoảng trắng."
+            }
+          },
+          {
+            "name": "normalized_name",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Tên công ty chuẩn hóa."
+            }
+          },
+          {
+            "name": "source_name",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Tên nguồn dữ liệu."
+            }
+          },
+          {
+            "name": "identity_status",
+            "type": "string",
+            "nullable": false,
+            "metadata": {
+              "comment": "Trạng thái xác thực tên công ty."
             }
           }
         ]
@@ -689,14 +712,6 @@
             "nullable": true,
             "metadata": {
               "comment": "Chỉ số năm dành riêng cho kỹ năng; không sao chép kinh nghiệm chung."
-            }
-          },
-          {
-            "name": "extraction_method",
-            "type": "string",
-            "nullable": false,
-            "metadata": {
-              "comment": "STRUCTURED/DICTIONARY/MANUAL/..."
             }
           },
           {
