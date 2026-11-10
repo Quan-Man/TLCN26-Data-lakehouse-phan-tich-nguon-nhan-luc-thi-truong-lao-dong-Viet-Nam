@@ -1,74 +1,43 @@
+
 from datetime import timedelta
 
 import pendulum
-
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 
 
-LOCAL_TZ = pendulum.timezone("Asia/Ho_Chi_Minh")
-
-default_args = {
-    "owner": "data-engineering-team",
-    "depends_on_past": False,
-    "retries": 2,
-    "retry_delay": timedelta(minutes=5),
-}
-
 with DAG(
-    dag_id="gold_analytics",
-    description="Xây dựng các bảng phân tích thị trường lao động",
-    default_args=default_args,
-    start_date=pendulum.datetime(
-        2026,
-        9,
-        1,
-        tz=LOCAL_TZ,
-    ),
-    schedule="0 5 * * *",
+    dag_id="gold_education",
+    description="Build, validate, and register Education Gold Delta tables",
+    start_date=pendulum.datetime(2026, 9, 1, tz="Asia/Ho_Chi_Minh"),
+    schedule=None,
     catchup=False,
     max_active_runs=1,
-    tags=["gold", "analytics"],
+    default_args={
+        "owner": "data-engineering-team",
+        "retries": 1,
+        "retry_delay": timedelta(minutes=5),
+    },
+    tags=["gold", "education", "delta", "minio"],
 ) as dag:
 
-    build_labor_demand = BashOperator(
-        task_id="build_labor_demand",
-        bash_command="""
-        python /opt/airflow/scripts/gold/labor_demand.py
-        """,
+    # 1. Xây dựng các bảng Gold
+    build_education_gold = BashOperator(
+        task_id="build_education_gold",
+        bash_command="cd /opt/airflow && python -m jobs.gold.build_education_gold",
     )
 
-    build_skill_demand = BashOperator(
-        task_id="build_skill_demand",
-        bash_command="""
-        python /opt/airflow/scripts/gold/skill_demand.py
-        """,
+    # 2. Kiểm tra chất lượng dữ liệu Gold
+    check_education_gold = BashOperator(
+        task_id="check_education_gold",
+        bash_command="cd /opt/airflow && python -m jobs.dq.check_gold",
     )
 
-    build_education_supply = BashOperator(
-        task_id="build_education_supply",
-        bash_command="""
-        python /opt/airflow/scripts/gold/education_supply.py
-        """,
+    # 3. Đăng ký bảng Gold vào Hive Metastore
+    register_education_gold = BashOperator(
+        task_id="register_education_gold",
+        bash_command="cd /opt/airflow && python -m jobs.gold.build_education_gold --register-only",
     )
 
-    build_labor_supply = BashOperator(
-        task_id="build_labor_supply",
-        bash_command="""
-        python /opt/airflow/scripts/gold/labor_supply.py
-        """,
-    )
-
-    build_supply_demand_gap = BashOperator(
-        task_id="build_supply_demand_gap",
-        bash_command="""
-        python /opt/airflow/scripts/gold/supply_demand_gap.py
-        """,
-    )
-
-    [
-        build_labor_demand,
-        build_skill_demand,
-        build_education_supply,
-        build_labor_supply,
-    ] >> build_supply_demand_gap
+    # Thứ tự chạy
+    build_education_gold >> check_education_gold >> register_education_gold

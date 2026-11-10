@@ -35,6 +35,7 @@ x-airflow: &airflow
     - ./dags:/opt/airflow/dags
     - ./jobs:/opt/airflow/jobs
     - ./data:/opt/airflow/data
+    - ./configs:/opt/airflow/configs:ro
     - airflow-logs:/opt/airflow/logs
 
   depends_on: &airflow-deps
