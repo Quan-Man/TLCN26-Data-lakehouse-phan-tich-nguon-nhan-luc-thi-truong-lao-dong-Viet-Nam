@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+python /opt/airflow/scripts/ensure_buckets.py
 airflow db migrate
 python - <<'PY'
 import os

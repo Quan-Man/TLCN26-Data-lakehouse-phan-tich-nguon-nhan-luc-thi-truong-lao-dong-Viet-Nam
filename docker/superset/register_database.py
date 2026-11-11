@@ -4,31 +4,19 @@ from urllib.parse import quote_plus
 from superset.app import create_app
 from superset import db, security_manager
 
-
-# ============================================================
 # CREATE SUPERSET APPLICATION
-# ============================================================
-
 app = create_app()
 
-
-# ============================================================
 # RUN INSIDE FLASK APPLICATION CONTEXT
-# ============================================================
-
 with app.app_context():
 
     # Import Superset models only AFTER application context exists.
     from superset.models.core import Database
 
-    # ========================================================
-    # 1. CREATE ADMIN USER
-    # ========================================================
-
+    # CREATE ADMIN USER
     username = os.environ["SUPERSET_ADMIN_USERNAME"]
 
     if not security_manager.find_user(username=username):
-
         role = security_manager.find_role("Admin")
 
         if role is None:
@@ -44,14 +32,9 @@ with app.app_context():
         )
 
         if not user:
-            raise RuntimeError(
-                "Could not create Superset administrator"
-            )
+            raise RuntimeError("Could not create Superset administrator user.")
 
-    # ========================================================
-    # 2. CREATE / UPDATE VIETNAM LAKEHOUSE DATABASE
-    # ========================================================
-
+    # CREATE / UPDATE VIETNAM LAKEHOUSE DATABASE
     database = (
         db.session
         .query(Database)
@@ -60,16 +43,10 @@ with app.app_context():
     )
 
     if database is None:
-        database = Database(
-            database_name="Vietnam Lakehouse"
-        )
-
+        database = Database(database_name="Vietnam Lakehouse")
         db.session.add(database)
 
-    # ========================================================
-    # 3. CONFIGURE READ-ONLY POSTGRES CONNECTION
-    # ========================================================
-
+    # CONFIGURE READ-ONLY POSTGRES CONNECTION
     database.sqlalchemy_uri = (
         "postgresql+psycopg2://bi_reader:"
         + quote_plus(os.environ["BI_DB_PASSWORD"])
@@ -79,12 +56,8 @@ with app.app_context():
     database.expose_in_sqllab = True
     database.allow_dml = False
 
-    # ========================================================
-    # 4. SAVE CHANGES
-    # ========================================================
-
+    # SAVE CHANGES
     db.session.commit()
-
 
 print(
     "Superset administrator and Vietnam Lakehouse "
