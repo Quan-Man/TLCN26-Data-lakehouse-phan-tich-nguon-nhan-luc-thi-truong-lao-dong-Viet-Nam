@@ -1,112 +1,52 @@
+"""Independent Economic/Labour CSV -> Bronze Delta ingestion DAG.
+
+This DAG intentionally does not modify the education Bronze DAG.
+The loader is a spark-submit CLI, so BashOperator is used instead of
+PythonOperator. Spark/Delta/S3A dependencies must exist in the Airflow image.
+"""
 from datetime import timedelta
 
 import pendulum
-
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 
-
-# ============================================================
-# CONFIG
-# ============================================================
-
 LOCAL_TZ = pendulum.timezone("Asia/Ho_Chi_Minh")
 
-
-default_args = {
-    "owner": "data-engineering-team",
-    "depends_on_past": False,
-    "retries": 2,
-    "retry_delay": timedelta(minutes=5),
-}
-
-
-# ============================================================
-# DAG
-# ============================================================
+# Paths inside the Airflow container (verify the Docker Compose volume mounts).
+ECONOMIC_LOADER = "/opt/airflow/jobs/bronze/load_economic_labour.py"
+ECONOMIC_INPUT_DIR = "/opt/airflow/data/economy"
+ECONOMIC_BRONZE_OUTPUT = "s3a://bronze/economic/economic_statistics"
 
 with DAG(
-    dag_id="labor_statistics_ingestion",
-    description="Thu thập dữ liệu thống kê thị trường lao động Việt Nam",
-    default_args=default_args,
-    start_date=pendulum.datetime(
-        2026,
-        9,
-        1,
-        tz=LOCAL_TZ,
-    ),
-    schedule="0 2 * * *",       # chạy mỗi ngày lúc 02:00
+    dag_id="03_labor_statistics_ingestion",
+    description="Ingest 19 Economic/Labour CSV files to Bronze Delta on MinIO",
+    start_date=pendulum.datetime(2026, 9, 1, tz=LOCAL_TZ),
+    schedule=None,
     catchup=False,
     max_active_runs=1,
-    tags=[  
-        "labor-statistics",
-        "bronze",
-        "scraping",
-    ],
+    default_args={
+        "owner": "data-engineering-team",
+        "depends_on_past": False,
+        "retries": 2,
+        "retry_delay": timedelta(minutes=5),
+    },
+    tags=["bronze", "economic", "labour", "spark", "delta", "minio"],
 ) as dag:
+    load_economic_labour_task = BashOperator(
+        task_id="load_economic_labour",
 
-    # --------------------------------------------------------
-    # 1. Crawl TopCV
-    # --------------------------------------------------------
+bash_command=(
+    "set -euo pipefail; "
+    "test -f '/opt/airflow/jobs/bronze/load_economic_labour.py'; "
+    "test -d '/opt/airflow/data/economy'; "
+    "spark-submit "
+    "--conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension "
+    "--conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog "
+    "'/opt/airflow/jobs/bronze/load_economic_labour.py' "
+    "--input-dir '/opt/airflow/data/economy' "
+    "--output 's3a://bronze/economic/economic_statistics' "
+    "--batch-id 'economic_initial' "
+    "--mode overwrite"
+),
 
-    crawl_topcv = BashOperator(
-        task_id="crawl_topcv",
-        bash_command="""
-        python /opt/airflow/scripts/crawlers/topcv_crawler.py
-        """,
     )
-
-    # --------------------------------------------------------
-    # 2. Crawl CareerViet
-    # --------------------------------------------------------
-
-    crawl_careerviet = BashOperator(
-        task_id="crawl_careerviet",
-        bash_command="""
-        python /opt/airflow/scripts/crawlers/careerviet_crawler.py
-        """,
-    )
-
-    # --------------------------------------------------------
-    # 3. Crawl Vieclam24h
-    # --------------------------------------------------------
-
-    crawl_vieclam24h = BashOperator(
-        task_id="crawl_vieclam24h",
-        bash_command="""
-        python /opt/airflow/scripts/crawlers/vieclam24h_crawler.py
-        """,
-    )
-
-    # --------------------------------------------------------
-    # 4. Crawl Timviec365
-    # --------------------------------------------------------
-
-    crawl_timviec365 = BashOperator(
-        task_id="crawl_timviec365",
-        bash_command="""
-        python /opt/airflow/scripts/crawlers/timviec365_crawler.py
-        """,
-    )
-
-    # --------------------------------------------------------
-    # 5. Validate raw JSON
-    # --------------------------------------------------------
-
-    validate_raw_data = BashOperator(
-        task_id="validate_raw_data",
-        bash_command="""
-        python /opt/airflow/scripts/validation/validate_labor_statistics_json.py
-        """,
-    )
-
-    # --------------------------------------------------------
-    # Dependency
-    # --------------------------------------------------------
-
-    [
-        crawl_topcv,
-        crawl_careerviet,
-        crawl_vieclam24h,
-        crawl_timviec365,
-    ] >> validate_raw_data

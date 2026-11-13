@@ -1,74 +1,38 @@
+# -*- coding: utf-8 -*-
+"""Economy Gold: idempotent Delta build -> DQ -> Hive registration.
+
+No manual Trino metadata flush. Unchanged tables keep the same Delta files.
+Changed tables still depend on normal Trino Delta metadata invalidation.
+"""
 from datetime import timedelta
-
 import pendulum
-
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 
-
-LOCAL_TZ = pendulum.timezone("Asia/Ho_Chi_Minh")
-
-default_args = {
-    "owner": "data-engineering-team",
-    "depends_on_past": False,
-    "retries": 2,
-    "retry_delay": timedelta(minutes=5),
-}
-
 with DAG(
-    dag_id="gold_analytics",
-    description="Xây dựng các bảng phân tích thị trường lao động",
-    default_args=default_args,
-    start_date=pendulum.datetime(
-        2026,
-        9,
-        1,
-        tz=LOCAL_TZ,
-    ),
-    schedule="0 5 * * *",
+    dag_id='06_gold_analytics',
+    description='Build, validate and register 8 Economy Gold Delta tables',
+    start_date=pendulum.datetime(2026, 9, 1, tz='Asia/Ho_Chi_Minh'),
+    schedule=None,
     catchup=False,
     max_active_runs=1,
-    tags=["gold", "analytics"],
+    default_args={
+        'owner': 'data-engineering-team',
+        'retries': 0,
+        'retry_delay': timedelta(minutes=5),
+    },
+    tags=['gold', 'economy', 'spark', 'delta', 'dq'],
 ) as dag:
-
-    build_labor_demand = BashOperator(
-        task_id="build_labor_demand",
-        bash_command="""
-        python /opt/airflow/scripts/gold/labor_demand.py
-        """,
+    build_economy_gold = BashOperator(
+        task_id='build_economy_gold',
+        bash_command='cd /opt/airflow && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m jobs.gold.build_economy_gold',
     )
-
-    build_skill_demand = BashOperator(
-        task_id="build_skill_demand",
-        bash_command="""
-        python /opt/airflow/scripts/gold/skill_demand.py
-        """,
+    check_economy_gold = BashOperator(
+        task_id='check_economy_gold',
+        bash_command='cd /opt/airflow && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m jobs.dq.check_economic_gold',
     )
-
-    build_education_supply = BashOperator(
-        task_id="build_education_supply",
-        bash_command="""
-        python /opt/airflow/scripts/gold/education_supply.py
-        """,
+    register_economy_gold = BashOperator(
+        task_id='register_economy_gold',
+        bash_command='cd /opt/airflow && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m jobs.gold.build_economy_gold --register-only',
     )
-
-    build_labor_supply = BashOperator(
-        task_id="build_labor_supply",
-        bash_command="""
-        python /opt/airflow/scripts/gold/labor_supply.py
-        """,
-    )
-
-    build_supply_demand_gap = BashOperator(
-        task_id="build_supply_demand_gap",
-        bash_command="""
-        python /opt/airflow/scripts/gold/supply_demand_gap.py
-        """,
-    )
-
-    [
-        build_labor_demand,
-        build_skill_demand,
-        build_education_supply,
-        build_labor_supply,
-    ] >> build_supply_demand_gap
+    build_economy_gold >> check_economy_gold >> register_economy_gold
