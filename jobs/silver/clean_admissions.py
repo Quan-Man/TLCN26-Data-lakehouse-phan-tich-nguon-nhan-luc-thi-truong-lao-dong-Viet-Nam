@@ -328,41 +328,68 @@ def build():
         # with 'Chung chỉ tiêu 150'. They share ONE quota pool of 150 seats.
         # Match the original evidence and the known scope; never infer shared
         # quotas from numeric 150 alone.
-        shared_codes = ['306','307','308','309','310','314','315','319','323','325','342','345']
+        # Explicitly verified shared-quota groups, separated by admission year.
+        # 2024 codes are based on the 13 rows reported by the Silver validation log.
+        shared_codes_2024 = ['307','308','309','310','313','314','315','319','320','323','325','342','345']
+        shared_codes_2026 = ['306','307','308','309','310','314','315','319','323','325','342','345']
         quota_text = F.lower(F.regexp_replace(F.trim(F.col('quota_raw')), r'\s+', ' '))
         shared_pattern = quota_text.rlike(r'^chung\s+chỉ\s+tiêu\s+150$')
-        shared_scope = (
+        shared_2024 = (
+            (F.col('university_code_raw') == 'QSB') &
+            (F.col('admission_year') == 2024) &
+            F.col('major_code_raw').isin(*shared_codes_2024) &
+            (F.col('program_type_raw') == 'Chương trình Chuyển tiếp Quốc tế') &
+            shared_pattern
+        )
+        shared_2026 = (
             (F.col('university_code_raw') == 'QSB') &
             (F.col('admission_year') == 2026) &
-            F.col('major_code_raw').isin(*shared_codes) &
-            (F.col('program_type_raw') == 'Chương trình liên kết quốc tế')
+            F.col('major_code_raw').isin(*shared_codes_2026) &
+            (F.col('program_type_raw') == 'Chương trình liên kết quốc tế') &
+            shared_pattern
         )
-        shared = shared_pattern & shared_scope
-        # Refuse to silently leave unexpected shared-quota rows ungrouped.
+        shared = shared_2024 | shared_2026
         unexpected_shared = b.where(
             quota_text.rlike(r'chung\s+chỉ\s+tiêu') & ~shared
-        ).select('university_code_raw','admission_year','major_code_raw',
-                 'program_type_raw','quota_raw').limit(20).collect()
+        ).select('university_code_raw', 'admission_year', 'major_code_raw',
+                 'program_type_raw', 'quota_raw').limit(20).collect()
         if unexpected_shared:
             raise ValueError(f'Unmapped shared-quota rows: {unexpected_shared}')
-        shared_rows = b.where(shared).select('major_code_raw').collect()
-        observed_codes = [r['major_code_raw'] for r in shared_rows]
-        if len(observed_codes) != len(shared_codes) or set(observed_codes) != set(shared_codes):
-            raise ValueError(f'Expected 12 QSB shared quota rows, got {observed_codes}')
+        for year, predicate, expected_codes in [
+            (2024, shared_2024, shared_codes_2024),
+            (2026, shared_2026, shared_codes_2026),
+        ]:
+            observed_codes = [r['major_code_raw'] for r in b.where(predicate).select('major_code_raw').collect()]
+            if len(observed_codes) != len(expected_codes) or set(observed_codes) != set(expected_codes):
+                raise ValueError(f'QSB {year} shared quota: expected {expected_codes}, got {observed_codes}')
         group_id = key('university_code_raw', 'admission_year_raw', '_quota_group_name')
-        b = b.withColumn('_quota_group_name', F.when(shared, F.lit('Chương trình liên kết quốc tế - chỉ tiêu chung 150')))
+        b = b.withColumn('_quota_group_name',
+            F.when(shared_2024, F.lit('Chương trình Chuyển tiếp Quốc tế - chỉ tiêu chung 150'))
+             .when(shared_2026, F.lit('Chương trình liên kết quốc tế - chỉ tiêu chung 150')))
         b = b.withColumn('quota_group_id', F.when(shared, group_id))
         b = b.withColumn('quota', F.when(F.col('quota_raw').rlike(r'^\d+$'), F.col('quota_raw').cast('long')))
         b = b.withColumn('quota_status', F.when(shared, F.lit('SHARED'))
             .when(F.col('quota_raw').isNull(), F.lit('MISSING'))
             .when(F.col('quota').isNotNull(), F.lit('KNOWN'))
             .otherwise(F.lit('REVIEW')))
-        b = b.withColumn('quota_note', F.when(shared, F.lit('12 chương trình liên kết quốc tế dùng chung 150 chỉ tiêu; không phân bổ theo từng chương trình')))
+        b = b.withColumn('quota_note',
+            F.when(shared_2024, F.lit('13 chương trình chuyển tiếp quốc tế năm 2024 dùng chung 150 chỉ tiêu'))
+             .when(shared_2026, F.lit('12 chương trình liên kết quốc tế năm 2026 dùng chung 150 chỉ tiêu')))
         b = b.withColumn('tuition_parsed', TUITION_UDF(F.col('tuition_fee_raw')))
         b = b.withColumn('processed_at', F.current_timestamp())
-        universities = latest_per(b, 'university_id', ['admission_year','raw_id']).select(
+        # University dimension uses one representative province per university.
+        # SPK has admissions associated with the Dong Nai branch, but the chosen
+        # representative location is its main campus in Ho Chi Minh City.
+        university_candidates = b.withColumn(
+            '_representative_location',
+            F.when(F.col('university_code_raw') == 'SPK', F.lit('Thành phố Hồ Chí Minh'))
+             .otherwise(F.col('location_name'))
+        )
+        universities = latest_per(university_candidates, 'university_id', ['admission_year','raw_id']).select(
             'university_id',F.col('university_code_raw').alias('university_code'),
-            F.col('university_name_raw').alias('university_name'),F.col('university_type_raw').alias('university_type'),'location_name')
+            F.col('university_name_raw').alias('university_name'),
+            F.col('university_type_raw').alias('university_type'),
+            F.col('_representative_location').alias('location_name'))
         majors_ranked = b.withColumn('_major_verified_rank',
             F.when(F.col('_major_code_status') == 'VERIFIED', F.lit(1)).otherwise(F.lit(0)))
         majors = latest_per(majors_ranked, 'major_id', ['_major_verified_rank','admission_year','raw_id']).select(
@@ -410,8 +437,8 @@ def build():
                 F.lit(150).cast('long').alias('group_quota'),
                 F.lit('SHARED').alias('quota_status'))
             .dropDuplicates(['quota_group_id']))
-        if groups.count() != 1:
-            raise ValueError('Expected exactly one 2026 QSB shared quota group')
+        if groups.count() != 2:
+            raise ValueError('Expected exactly two QSB shared quota groups (2024 and 2026)')
         for c in ['university_code_raw','university_name_raw','admission_year_raw','announcement_date_raw']:
             if c not in dates.columns: raise ValueError(f'Bronze dates missing {c}')
             dates = dates.withColumn(c, clean(c))

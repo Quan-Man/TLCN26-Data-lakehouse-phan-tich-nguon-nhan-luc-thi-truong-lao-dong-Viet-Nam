@@ -276,20 +276,13 @@ def build(spark):
                      & (F.col('tuition_min') >= 0)
                      & (F.col('tuition_max') >= F.col('tuition_min')),
                      (F.col('tuition_min') + F.col('tuition_max')) / F.lit(2.0)))
-          .withColumn('tuition_range',
-              F.when(F.col('tuition_is_free') == True, F.lit(0.0))
-               .when(F.col('tuition_min').isNotNull() & F.col('tuition_max').isNotNull()
-                     & F.col('tuition_unit').isNotNull()
-                     & (F.col('tuition_min') >= 0)
-                     & (F.col('tuition_max') >= F.col('tuition_min')),
-                     F.col('tuition_max') - F.col('tuition_min')))
-         .withColumn('loaded_at', F.current_timestamp())
+          .withColumn('loaded_at', F.current_timestamp())
          .select('admission_fact_key', 'admission_id', 'date_key', 'university_key',
                  'major_key', 'location_key', 'program_key', 'admission_year',
                  'admission_code', 'quota', 'quota_status', 'quota_group_id',
                   'quota_total_contribution', 'tuition_min', 'tuition_max',
                  'tuition_unit', 'tuition_status', 'tuition_is_free',
-                  'tuition_avg', 'tuition_range', 'loaded_at'))
+                  'tuition_avg', 'loaded_at'))
     assert_unique(f, 'admission_fact_key', 'fact_admission')
 
     # Validate before publishing outputs; write fact last.
