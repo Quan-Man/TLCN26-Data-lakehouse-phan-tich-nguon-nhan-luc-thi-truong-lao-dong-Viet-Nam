@@ -26,7 +26,14 @@ PRIMARY_KEYS = {
     'admissions': 'admission_id', 'quota_groups': 'quota_group_id',
     'admission_announcements': 'announcement_id',
 }
-EXPECTED_SHARED_CODES = {'306','307','308','309','310','314','315','319','323','325','342','345'}
+EXPECTED_SHARED_CODES_BY_YEAR = {
+    2024: {'307','308','309','310','313','314','315','319','320','323','325','342','345'},
+    2026: {'306','307','308','309','310','314','315','319','323','325','342','345'},
+}
+EXPECTED_SHARED_GROUP_NAMES = {
+    2024: 'Chương trình Chuyển tiếp Quốc tế - chỉ tiêu chung 150',
+    2026: 'Chương trình liên kết quốc tế - chỉ tiêu chung 150',
+}
 
 
 def main():
@@ -141,18 +148,44 @@ def main():
         check('tuition free flag inconsistent with status', a.filter(
             (F.col('tuition_is_free') == True) & (F.col('tuition_status') != 'FREE')).count())
 
-        qsb = u.filter(F.col('university_code') == 'QSB').select('university_id')
-        target = g.join(qsb, 'university_id').filter(F.col('admission_year') == 2026)
-        check('QSB 2026 quota group count != 1', abs(target.count() - 1))
-        check('QSB 2026 group quota != 150', target.filter(F.col('group_quota') != 150).count())
+        # Validate each reviewed QSB shared-quota pool independently by year.
+        # A code may legitimately appear in both years; only duplicates within
+        # the same pool are invalid. Never count 150 per admission row.
+        qsb = u.filter(F.col('university_code') == 'QSB').select('university_id').distinct()
         shared = a.filter(F.col('quota_status') == 'SHARED')
-        check('SHARED admission count != 12', abs(shared.count() - 12))
-        check('SHARED admissions outside QSB 2026 group',
-              shared.join(target.select('quota_group_id'), 'quota_group_id', 'left_anti').count())
-        codes = {r['source_major_code'] for r in shared.select('source_major_code').collect()}
-        check('SHARED major codes differ from expected 12',
-              len(codes.symmetric_difference(EXPECTED_SHARED_CODES)))
-        check('SHARED duplicate major codes', shared.count() - len(codes))
+        expected_ids = []
+        for year, expected_codes in EXPECTED_SHARED_CODES_BY_YEAR.items():
+            target = (g.join(qsb, 'university_id')
+                      .filter(F.col('admission_year') == year))
+            check(f'QSB {year} quota group count != 1', abs(target.count() - 1))
+            check(f'QSB {year} group quota != 150',
+                  target.filter(F.col('group_quota').isNull() | (F.col('group_quota') != 150)).count())
+            check(f'QSB {year} group name mismatch',
+                  target.filter(F.col('group_name').isNull() |
+                                (F.col('group_name') != EXPECTED_SHARED_GROUP_NAMES[year])).count())
+            check(f'QSB {year} group status != SHARED',
+                  target.filter(F.col('quota_status').isNull() |
+                                (F.col('quota_status') != 'SHARED')).count())
+            target_ids = target.select('quota_group_id').distinct()
+            expected_ids.append(target_ids)
+            year_shared = shared.join(target_ids, 'quota_group_id', 'left_semi')
+            check(f'QSB {year} SHARED admission count mismatch',
+                  abs(year_shared.count() - len(expected_codes)))
+            observed = [r['source_major_code'] for r in year_shared.select('source_major_code').collect()]
+            check(f'QSB {year} SHARED major codes mismatch',
+                  len(set(observed).symmetric_difference(expected_codes)))
+            check(f'QSB {year} SHARED duplicate major codes',
+                  len(observed) - len(set(observed)))
+            check(f'QSB {year} SHARED admission year mismatch',
+                  year_shared.filter(F.col('admission_year') != year).count())
+
+        all_expected_ids = expected_ids[0].unionByName(expected_ids[1]).distinct()
+        check('SHARED admissions outside reviewed QSB 2024/2026 groups',
+              shared.join(all_expected_ids, 'quota_group_id', 'left_anti').count())
+        check('Unexpected shared quota groups',
+              g.join(all_expected_ids, 'quota_group_id', 'left_anti').count())
+        check('Total SHARED admission count mismatch',
+              abs(shared.count() - sum(map(len, EXPECTED_SHARED_CODES_BY_YEAR.values()))))
 
         # Informational only: absent admission_code and unresolved tuition are legitimate source limitations.
         print(f'\nINFO: admissions rows={a.count()}, announcements rows={d.count()}', flush=True)
