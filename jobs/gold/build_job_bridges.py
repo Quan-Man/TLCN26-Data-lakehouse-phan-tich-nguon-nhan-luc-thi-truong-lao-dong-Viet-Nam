@@ -1,24 +1,3 @@
-"""Synchronize ONLY bridge_job_location for jobs with at least two locations.
-
-Requires sibling build_shared_dimensions.py and build_jobs_gold.py. Read full
-Delta snapshots of Silver job_locations(job_id STRING, location_id STRING),
-Gold fact_job_posting and shared dim_location. No bridge_job_skill is created;
-fact_job_skill keeps the primary location inherited from its parent posting.
-
-Grain/merge key: (job_fact_key, location_id). Preserve raw IDs with unknown FK
-'0' when a location has no applicable SCD version. Do not collapse two unmapped
-places to one unknown row. Location versions follow the parent's as_of/posted
-policy. A missing posted_date under posted policy maps to unknown, not current.
-
-For seen_in_silver jobs Silver is the complete current location set INCLUDING
-the known primary place, even for single-location jobs. For retained parents,
-keep prior bridge evidence and refresh dimension keys. A job changing from
-multiple locations to one/zero loses its bridge rows. No fabricated weights.
-
-Validate/cache the whole desired table before one Delta MERGE with deletions.
-Use a single writer and publish only after all Gold tasks succeed. Version
-checks detect changes before commit but do not replace an orchestration lock.
-"""
 from __future__ import annotations
 
 import argparse
@@ -81,6 +60,26 @@ def prepare_locations(source):
     jobs.fail_if(source, F.col('job_id').isNull() | F.col('location_id').isNull()
         | (F.col('location_id') == shared.UNKNOWN_ID), 'job_locations: blank/NULL/reserved business ID')
     return source.distinct()
+
+
+def read_silver_locations(spark, silver_root, load_delta):
+    """Use the location resolver available in the companion Gold job."""
+    resolve = getattr(jobs, 'resolve_silver_table_path', None)
+    if resolve is not None:
+        path = resolve(silver_root, 'job_locations',
+                       lambda candidate: shared.hadoop_exists(spark, candidate))
+    elif shared.hadoop_exists(spark, f'{silver_root}/latest.json'):
+        snapshot = jobs.silver_snapshot_root(spark, silver_root, 'job_locations')
+        return jobs.read_silver_parquet(spark, snapshot, 'job_locations')
+    else:
+        current_root = silver_root if silver_root.endswith('/current') else f'{silver_root}/current'
+        path = f'{current_root}/job_locations.parquet'
+        if not shared.hadoop_exists(spark, path):
+            path = f'{silver_root}/job_locations'
+
+    if path.endswith('.parquet'):
+        return spark.read.parquet(path)
+    return load_delta(path)
 
 
 def lookup_date():
@@ -221,9 +220,10 @@ def build_job_bridges(spark=None, *, silver_root=None, shared_root=None, gold_ro
     from pyspark import StorageLevel
     from pyspark.sql import functions as F
     from delta.tables import DeltaTable
-    silver_root = (silver_root or os.getenv('JOBS_SILVER_ROOT', 's3a://silver/jobs')).rstrip('/')
-    shared_root = (shared_root or os.getenv('SHARED_GOLD_ROOT', 's3a://gold/shared')).rstrip('/')
-    gold_root = (gold_root or os.getenv('JOBS_GOLD_ROOT', 's3a://gold/jobs')).rstrip('/')
+    normalize_root = getattr(jobs, 'normalize_s3a_root', lambda path: path.rstrip('/'))
+    silver_root = normalize_root(silver_root or os.getenv('JOBS_SILVER_ROOT', 's3a://silver/jobs'))
+    shared_root = normalize_root(shared_root or os.getenv('SHARED_GOLD_ROOT', 's3a://gold/shared'))
+    gold_root = normalize_root(gold_root or os.getenv('JOBS_GOLD_ROOT', 's3a://gold/jobs'))
     roots = [silver_root, shared_root, gold_root]
     if max_reference_rows < 1 or any(p.startswith('s3://') for p in roots):
         raise ValueError('Use s3a:// and a positive max_reference_rows')
@@ -239,7 +239,8 @@ def build_job_bridges(spark=None, *, silver_root=None, shared_root=None, gold_ro
         shared.validate_dimension(shared.bounded_rows(location, max_reference_rows), shared.SPECS['location'])
         parent = load(f'{gold_root}/fact_job_posting')
         reference_date = validate_parent(parent, location, reference_date)
-        evidence = prepare_locations(load(f'{silver_root}/job_locations')).persist(StorageLevel.MEMORY_AND_DISK)
+        source = read_silver_locations(spark, silver_root, load)
+        evidence = prepare_locations(source).persist(StorageLevel.MEMORY_AND_DISK)
         cached.append(evidence)
         evidence.count()
         path = f'{gold_root}/bridge_job_location'

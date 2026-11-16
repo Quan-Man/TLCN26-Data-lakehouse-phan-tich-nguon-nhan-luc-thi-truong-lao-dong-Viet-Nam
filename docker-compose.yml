@@ -16,6 +16,9 @@ services:
       SERVICE_OPTS: -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/hive_metastore
         -Djavax.jdo.option.ConnectionUserName=postgres -Djavax.jdo.option.ConnectionPassword=${POSTGRES_PASSWORD}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      HADOOP_OPTIONAL_TOOLS: hadoop-aws
+      AWS_ACCESS_KEY_ID: "${MINIO_ROOT_USER:-admin}"
+      AWS_SECRET_ACCESS_KEY: "${MINIO_ROOT_PASSWORD}"
     ports:
     - 127.0.0.1:${HIVE_METASTORE_PORT:-9083}:9083
     
@@ -24,6 +27,7 @@ services:
         condition: service_healthy
     volumes:
     - hive-warehouse:/opt/hive/data/warehouse
+    - ./docker/hive/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
     entrypoint:
     - /bin/bash
     - -ec
@@ -48,6 +52,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-admin}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
     
     depends_on:
       hive-metastore:
@@ -185,6 +191,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-admin}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
     ports:
     - 127.0.0.1:${MINIO_API_PORT:-9000}:9000
     - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
@@ -210,6 +218,10 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-admin}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-admin}}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
       PGHOST: postgres
       PGPORT: '5432'
       PGDATABASE: lakehouse
@@ -224,6 +236,7 @@ services:
     - ./dags:/opt/airflow/dags
     - ./jobs:/opt/airflow/jobs
     - ./configs:/opt/airflow/configs:ro
+    - ./sql:/opt/airflow/sql:ro
     - ./data:/opt/airflow/data
     - airflow-logs:/opt/airflow/logs
     
@@ -276,6 +289,10 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-admin}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-admin}}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
       PGHOST: postgres
       PGPORT: '5432'
       PGDATABASE: lakehouse
@@ -290,6 +307,7 @@ services:
     - ./dags:/opt/airflow/dags
     - ./jobs:/opt/airflow/jobs
     - ./configs:/opt/airflow/configs:ro
+    - ./sql:/opt/airflow/sql:ro
     - ./data:/opt/airflow/data
     - airflow-logs:/opt/airflow/logs
     
@@ -311,53 +329,6 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
-  
-  spark-job:
-    image: 26tlcn-lakehouse/airflow-spark:2.10.5-3.5.5
-    user: '50000:0'
-    
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-      AIRFLOW__CORE__PARALLELISM: '2'
-      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '1'
-      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?Run python scripts/setup_env.py}
-      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
-      AIRFLOW__WEBSERVER__WORKERS: '2'
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
-      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-      AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      PGHOST: postgres
-      PGPORT: '5432'
-      PGDATABASE: lakehouse
-      PGUSER: lakehouse
-      PGPASSWORD: ${LAKEHOUSE_DB_PASSWORD}
-      SPARK_LOCAL_IP: 127.0.0.1
-      PYSPARK_PYTHON: /usr/local/bin/python
-      PYTHONPATH: /opt/airflow/jobs
-      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
-      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
-    volumes:
-    - ./dags:/opt/airflow/dags
-    - ./jobs:/opt/airflow/jobs
-    - ./configs:/opt/airflow/configs:ro
-    - ./data:/opt/airflow/data
-    - airflow-logs:/opt/airflow/logs
-    
-    depends_on:
-      airflow-webserver:
-        condition: service_healthy
-    container_name: 26tlcn-lakehouse-spark-job
-    profiles:
-    - tools
-    command:
-    - python
-    - /opt/airflow/jobs/demo_pipeline.py
-    restart: 'no'
   
   superset:
     image: 26tlcn-lakehouse/superset:4.1.2

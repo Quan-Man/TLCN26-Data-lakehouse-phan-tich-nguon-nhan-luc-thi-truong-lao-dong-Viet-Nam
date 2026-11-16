@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import io
 import json
 import re
 import os
@@ -403,11 +404,18 @@ class LocationNormalizer:
         for lid in self.aliases.get(text.casefold(), set()):
             row = self.locations[lid]
             if self.policy == 'strict':
-                if not crawl_date: continue
-                if row.get('valid_from'):
-                    if crawl_date < row['valid_from'] or (row.get('valid_to') and crawl_date > row['valid_to']): continue
-                elif row.get('reference_date') != crawl_date:
+                if not crawl_date:
                     continue
+                valid_from = row.get('valid_from')
+                valid_to = row.get('valid_to')
+                reference_date = row.get('reference_date')
+                if valid_from:
+                    if crawl_date < valid_from or (valid_to and crawl_date > valid_to):
+                        continue
+                elif reference_date:
+                    if crawl_date != reference_date:
+                        continue
+                # Nếu dictionary không có mốc hiệu lực thì mặc định chấp nhận alias.
             candidates.append(lid)
         return candidates[0] if len(candidates) == 1 else None
 
@@ -433,9 +441,8 @@ class LocationNormalizer:
             flags.append("LOCATION_CONFLICT")
         if unresolved or not tokens: flags.append("LOCATION_UNRESOLVED")
         if self.policy == 'reference' and ids: flags.append("LOCATION_REFERENCE_VINTAGE")
-        rows = [dict(job_id=job_id, location_id=lid, location_name=r['location_name'],
-                     is_primary=lid == primary, reference_date=r.get('reference_date') or None,
-                     resolution_policy=self.policy) for lid,r in sorted(ids.items())]
+        rows = [dict(job_id=job_id, location_id=lid, location_name=r['location_name'])
+                for lid, r in sorted(ids.items())]
         return rows, primary, unresolved, flags
 
 def identify(envelope):
@@ -543,12 +550,11 @@ def validate_tables(tables, skill_ids, location_ids):
         for prefix,suffix in [('salary','vnd'),('experience','years')]:
             lo,hi = r[f'{prefix}_min_{suffix}'],r[f'{prefix}_max_{suffix}']
             if lo is not None and hi is not None and Decimal(lo)>Decimal(hi): raise ValueError('Reversed range')
-    locations = {(r['job_id'],r['location_id']) for r in tables['job_locations'] if r['is_primary']}
+    locations = {(r['job_id'], r['location_id']) for r in tables['job_locations']}
     for r in tables['job_locations']:
         if r['job_id'] not in jobs or r['location_id'] not in location_ids: raise ValueError('Location FK failed')
-        if r['is_primary'] != (jobs[r['job_id']]['primary_location_id'] == r['location_id']): raise ValueError('Primary location mismatch')
     for r in jobs.values():
-        if r['primary_location_id'] and (r['job_id'],r['primary_location_id']) not in locations: raise ValueError('Primary location absent')
+        if r['primary_location_id'] and (r['job_id'], r['primary_location_id']) not in locations: raise ValueError('Primary location absent')
     for r in tables['job_skills']:
         if r['job_id'] not in jobs or r['skill_id'] not in skill_ids: raise ValueError('Skill FK failed')
         if r['confidence_score'] is not None and not 0 <= r['confidence_score'] <= 1: raise ValueError('Invalid confidence')
@@ -682,25 +688,70 @@ def download_bronze(uri,destination):
         found = True
     if not found: raise ValueError('Không có Bronze completed trong '+uri)
 
-def upload_snapshot(snapshot,bucket,prefix,pointer,create_bucket=False):
-    client = minio_client()
+def upload_snapshot(snapshot, bucket, prefix, pointer, create_bucket=False):
+    """Lưu snapshot và cập nhật các đường dẫn ổn định dưới current/."""
+    snapshot = Path(snapshot)
     prefix = prefix.strip('/')
     if not prefix or any(p in {'','.','..'} for p in prefix.split('/')): raise ValueError('Unsafe MinIO prefix')
+
+    manifest_path = snapshot / 'manifest.json'
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    output_format = manifest['format']
+    formats = {'jsonl': ('jsonl',), 'parquet': ('parquet',), 'both': ('jsonl', 'parquet')}
+    if output_format not in formats:
+        raise ValueError('Định dạng Silver trong manifest không hợp lệ')
+    table_files = [f'{table}.{ext}' for table in COMMON for ext in formats[output_format]]
+    for filename in table_files:
+        if filename not in manifest['files'] or not (snapshot / filename).is_file():
+            raise ValueError(f'Snapshot Silver thiếu bảng {filename}')
+
+    client = minio_client()
     if not client.bucket_exists(bucket):
         if not create_bucket: raise ValueError('Bucket Silver chưa tồn tại; tạo bucket hoặc dùng --create-bucket')
         client.make_bucket(bucket)
-    base = prefix+'/snapshots/'+snapshot.name
-    files = sorted(p for p in snapshot.rglob('*') if p.is_file() and p.name!='manifest.json')
-    files.append(snapshot/'manifest.json')
+
+    def put_file(path, key):
+        client.fput_object(bucket, key, str(path))
+        if client.stat_object(bucket, key).size != path.stat().st_size:
+            raise RuntimeError(f'MinIO size verification failed: {key}')
+
+    def put_json(key, value):
+        payload = json.dumps(value, ensure_ascii=False).encode('utf-8')
+        client.put_object(bucket, key, io.BytesIO(payload), len(payload), content_type='application/json')
+
+    base = f'{prefix}/snapshots/{snapshot.name}'
+    files = sorted(p for p in snapshot.rglob('*') if p.is_file() and p != manifest_path)
+    files.append(manifest_path)
     for path in files:
-        key = base+'/'+path.relative_to(snapshot).as_posix()
-        client.fput_object(bucket,key,str(path))
-        # Không công bố latest nếu object thiếu hoặc sai kích thước sau upload.
-        if client.stat_object(bucket,key).size != path.stat().st_size: raise RuntimeError('MinIO size verification failed')
-    import io
-    payload = json.dumps(pointer,ensure_ascii=False).encode()
-    client.put_object(bucket,prefix+'/latest.json',io.BytesIO(payload),len(payload),content_type='application/json')
-    return 's3://'+bucket+'/'+base
+        put_file(path, f'{base}/{path.relative_to(snapshot).as_posix()}')
+
+    current_prefix = f'{prefix}/current/'
+    current_manifest = dict(
+        dataset=manifest['dataset'], status='updating', snapshot_id=manifest['snapshot_id'],
+        snapshot=pointer['snapshot'], processed_at=manifest['processed_at'], format=output_format,
+        table_counts=manifest['table_counts'], files={name: manifest['files'][name] for name in table_files},
+    )
+    # current/ ghi đè từng object. Đánh dấu đang cập nhật trước khi chạm vào bảng.
+    put_json(f'{current_prefix}manifest.json', current_manifest)
+    for filename in table_files:
+        put_file(snapshot / filename, f'{current_prefix}{filename}')
+
+    # Chỉ dọn file bảng thuộc định dạng cũ nếu lần chạy đổi --format.
+    stale_keys = {
+        f'{current_prefix}{table}.{ext}' for table in COMMON for ext in ('jsonl', 'parquet')
+    } - {f'{current_prefix}{name}' for name in table_files}
+    if stale_keys:
+        stale_objects = [
+            item.object_name for item in client.list_objects(bucket, prefix=current_prefix, recursive=False)
+            if item.object_name in stale_keys
+        ]
+        for key in stale_objects:
+            client.remove_object(bucket, key)
+
+    current_manifest['status'] = 'completed'
+    put_json(f'{current_prefix}manifest.json', current_manifest)
+    put_json(f'{prefix}/latest.json', pointer)
+    return f's3://{bucket}/{base}'
 
 EDUCATION = {
     'cao đẳng':'COLLEGE', 'đại học':'UNIVERSITY', 'trung cấp':'INTERMEDIATE',
@@ -793,8 +844,9 @@ def run_pipeline(bronze_dir=ROOT/'data/bronze/job_posting', output_dir=ROOT/'dat
     Lock cục bộ: chỉ một writer dùng cùng output_dir; MinIO cần một writer ở Airflow.
     """
     output_dir, mapping_dir = Path(output_dir).resolve(),Path(mapping_dir).resolve()
-    if output_format not in {'jsonl','parquet','both'}: raise ValueError('Unsupported output format')
-    if output_format != 'jsonl':
+    effective_format = 'parquet' if upload else output_format
+    if effective_format not in {'jsonl','parquet','both'}: raise ValueError('Unsupported output format')
+    if effective_format != 'jsonl':
         try: import pyarrow  # noqa: F401
         except ImportError as exc: raise RuntimeError('Cài pyarrow trong requirements-silver.txt trước khi xuất Parquet') from exc
     skills = SkillNormalizer(mapping_dir/'skill_dictionary.csv',mapping_dir/'skill_aliases.csv')
@@ -845,8 +897,8 @@ def run_pipeline(bronze_dir=ROOT/'data/bronze/job_posting', output_dir=ROOT/'dat
         if not tables['job_postings']: raise ValueError('Không có tin hợp lệ; giữ nguyên latest trước đó')
         validate_tables(tables,set(skills.skills),set(locations.locations))
         for name,rows in tables.items():
-            if output_format in {'jsonl','both'}: write_jsonl(stage/(name+'.jsonl'),rows)
-            if output_format in {'parquet','both'}: write_parquet(stage/(name+'.parquet'),rows,COMMON[name])
+            if effective_format in {'jsonl','both'}: write_jsonl(stage/(name+'.jsonl'),rows)
+            if effective_format in {'parquet','both'}: write_parquet(stage/(name+'.parquet'),rows,COMMON[name])
         (stage/'state').mkdir()
         # Giữ cả winner lỗi transform để batch cũ không phục hồi phiên bản lỗi thời.
         write_jsonl(stage/'state/winners.jsonl',[winners[k] for k in sorted(winners)])
@@ -869,7 +921,7 @@ def run_pipeline(bronze_dir=ROOT/'data/bronze/job_posting', output_dir=ROOT/'dat
         files = {p.relative_to(stage).as_posix():dict(sha256=file_hash(p),bytes=p.stat().st_size)
                  for p in sorted(stage.rglob('*')) if p.is_file()}
         manifest = dict(dataset='silver.jobs',status='completed',snapshot_id=snapshot_id,
-            processed_at=now,format=output_format,location_policy=location_policy,
+            processed_at=now,format=effective_format,location_policy=location_policy,
             input_manifests=inputs,code_sha256=file_hash(Path(__file__)),
             table_counts=metrics['table_counts'],checks=dict(primary_keys=True,foreign_keys=True,ranges=True),files=files)
         write_json(stage/'manifest.json',manifest)
@@ -881,6 +933,7 @@ def run_pipeline(bronze_dir=ROOT/'data/bronze/job_posting', output_dir=ROOT/'dat
         if upload:
             uri = upload_snapshot(final,bucket,prefix,pointer,create_bucket)
             LOG.info('MinIO hoàn tất: %s',uri)
+            LOG.info('Silver current: s3://%s/%s/ (%s)', bucket, prefix.strip('/'), effective_format)
         temporary_pointer = output_dir/('.latest_'+uuid4().hex+'.json')
         write_json(temporary_pointer,pointer)
         os.replace(temporary_pointer,latest)
@@ -898,7 +951,7 @@ def main(argv=None):
     parser.add_argument('--location-policy',choices=['strict','reference'],default='strict')
     parser.add_argument('--format',choices=['jsonl','parquet','both'],default='jsonl')
     parser.add_argument('--bronze-uri',help='Đọc từ s3://bronze/job_posting; thay cho --input-dir')
-    parser.add_argument('--minio',action='store_true',help='Upload snapshot và latest.json lên MinIO')
+    parser.add_argument('--minio',action='store_true',help='Upload snapshot và cập nhật current/ trên MinIO')
     parser.add_argument('--bucket',default='silver')
     parser.add_argument('--prefix',default='jobs')
     parser.add_argument('--create-bucket',action='store_true')

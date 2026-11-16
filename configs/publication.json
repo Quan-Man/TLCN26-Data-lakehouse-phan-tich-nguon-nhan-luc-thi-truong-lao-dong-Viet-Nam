@@ -1,0 +1,28 @@
+{
+  "channel": "default",
+  "control_root": "s3a://gold/publication_control",
+  "published_root": "s3a://gold/published",
+  "required_sources": ["reference", "education", "jobs", "economy"],
+  "trino": {"catalog": "delta", "storage_schema": "published_storage", "analytics_schema": "analytics"},
+  "tables": {
+    "dim_date": {"source":"reference", "path":"s3a://gold/shared/dim_date", "pk":["date_key"]},
+    "dim_location": {"source":"reference", "path":"s3a://gold/shared/dim_location", "pk":["location_key"]},
+    "dim_occupation": {"source":"reference", "path":"s3a://gold/shared/dim_occupation", "pk":["occupation_key"]},
+    "dim_industry": {"source":"reference", "path":"s3a://gold/shared/dim_industry", "pk":["industry_key"]},
+    "dim_skill": {"source":"reference", "path":"s3a://gold/shared/dim_skill", "pk":["skill_key"]},
+    "dim_company": {"source":"jobs", "path":"s3a://gold/jobs/dim_company", "pk":["company_key"]},
+    "fact_job_posting": {"source":"jobs", "path":"s3a://gold/jobs/fact_job_posting", "pk":["job_fact_key"]},
+    "fact_job_skill": {"source":"jobs", "path":"s3a://gold/jobs/fact_job_skill", "pk":["job_fact_key","skill_key"]},
+    "bridge_job_location": {"source":"jobs", "path":"s3a://gold/jobs/bridge_job_location", "pk":["job_fact_key","location_id"]},
+    "dim_university": {"source":"education", "path":"s3a://gold/education/dim_university", "pk":["university_key"]},
+    "dim_major": {"source":"education", "path":"s3a://gold/education/dim_major", "pk":["major_key"]},
+    "dim_program": {"source":"education", "path":"s3a://gold/education/dim_program", "pk":["program_key"]},
+    "fact_admission": {"source":"education", "path":"s3a://gold/education/fact_admission", "pk":["admission_key"]},
+    "fact_admission_quota_group": {"source":"education", "path":"s3a://gold/education/fact_admission_quota_group", "pk":["quota_group_key"]},
+    "bridge_quota_group_program": {"source":"education", "path":"s3a://gold/education/bridge_quota_group_program", "pk":["quota_group_key","program_key"]},
+    "dim_economic_indicator": {"source":"economy", "path":"s3a://gold/economy/dim_economic_indicator", "pk":["indicator_key"]},
+    "dim_residence_type": {"source":"economy", "path":"s3a://gold/economy/dim_residence_type", "pk":["residence_type_key"]},
+    "fact_economic_indicator": {"source":"economy", "path":"s3a://gold/economy/fact_economic_indicator", "pk":["economic_fact_key"]},
+    "fact_labor_market": {"source":"economy", "path":"s3a://gold/economy/fact_labor_market", "pk":["labor_fact_key"]}
+  }
+}

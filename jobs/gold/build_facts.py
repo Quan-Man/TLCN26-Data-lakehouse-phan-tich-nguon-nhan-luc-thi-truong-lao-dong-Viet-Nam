@@ -21,9 +21,11 @@ def build(silver_dir: Path, output_dir: Path) -> dict[str, int]:
         if job["job_id"] in job_key:
             raise ValueError(f"Duplicate Silver job_id: {job['job_id']}")
         job_key[job["job_id"]] = job["job_id"]
+        location_id = locations.get(job["job_id"]) or "LOC_UNKNOWN"
+        occupation_id = job.get("occupation_id") or "OCC_UNKNOWN"
         facts.append(dict(job_id=job["job_id"], date_key=int_date(job.get("posted_date")),
-            company_id=job.get("company_id"), occupation_id=job.get("occupation_id"),
-            industry_id=None, location_id=locations.get(job["job_id"]),
+            company_id=job.get("company_id") or "COMP_UNKNOWN", occupation_id=occupation_id,
+            industry_id=None, location_id=location_id,
             source_name=job.get("source_name"), job_title=job["job_title"],
             job_type=job.get("employment_type"), experience_level=job.get("experience_type"),
             education_level=job.get("education_level"), salary_min=job.get("salary_min_vnd"),
@@ -37,9 +39,11 @@ def build(silver_dir: Path, output_dir: Path) -> dict[str, int]:
     for row in tables["job_skills"]:
         if row["job_id"] not in job_key:
             raise ValueError(f"Skill row references missing job: {row['job_id']}")
+        matched_text = row.get("raw_skill_text") or row.get("skill_name") or row.get("skill_id") or "UNKNOWN_SKILL"
+        raw_skill_text = row.get("raw_skill_text") or matched_text
         skill_facts.append(dict(job_id=row["job_id"], skill_id=row["skill_id"],
-            evidence_field="requirements_raw", matched_text=row.get("raw_skill_text") or row["skill_id"],
-            raw_skill_text=row.get("raw_skill_text"), is_required=row.get("is_required"),
+            evidence_field="requirements_raw", matched_text=matched_text,
+            raw_skill_text=raw_skill_text, is_required=row.get("is_required"),
             required_level=row.get("required_level"), years_required=row.get("years_required"),
             extraction_method=row.get("extraction_method") or "SILVER",
             confidence_score=row.get("confidence_score"), validation_status="PENDING",

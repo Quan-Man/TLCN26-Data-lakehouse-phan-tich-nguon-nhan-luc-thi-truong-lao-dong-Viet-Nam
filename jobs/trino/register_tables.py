@@ -1,4 +1,3 @@
-"""Register published Delta locations in Trino from configs/tables.yml."""
 from __future__ import annotations
 
 import sys

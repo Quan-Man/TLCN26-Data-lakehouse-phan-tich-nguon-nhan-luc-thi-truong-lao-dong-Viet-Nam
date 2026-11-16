@@ -31,19 +31,19 @@ class DimensionSpec:
 
 
 SPECS = {
-    'location': DimensionSpec('location', 'location_id', 'location_key',
-        'location_name', ('location_code', 'location_name', 'location_level',
-        'province_name', 'economic_region'), 'location_mapping.csv'),
-    'occupation': DimensionSpec('occupation', 'occupation_id', 'occupation_key',
-        'occupation_name', ('occupation_code', 'occupation_name',
-        'occupation_group', 'field_group_name'), 'occupation_mapping.csv'),
-    'industry': DimensionSpec('industry', 'industry_id', 'industry_key',
-        'industry_name', ('industry_code', 'industry_name', 'industry_group',
-        'industry_section', 'industry_level', 'parent_industry_code'),
-        'industry_mapping.csv'),
+    'location': DimensionSpec('location', 'location_id', 'location_key', 'location_name',
+        ('province_code', 'location_name', 'location_name_normalized', 'location_type', 'country_code'),
+        'location_dictionary.csv'),
+    # 'occupation': DimensionSpec('occupation', 'occupation_id', 'occupation_key',
+    #     'occupation_name', ('occupation_code', 'occupation_name',
+    #     'occupation_group', 'field_group_name'), 'occupation_mapping.csv'),
+    # 'industry': DimensionSpec('industry', 'industry_id', 'industry_key',
+    #     'industry_name', ('industry_code', 'industry_name', 'industry_group',
+    #     'industry_section', 'industry_level', 'parent_industry_code'),
+    #     'industry_mapping.csv'),
     'skill': DimensionSpec('skill', 'skill_id', 'skill_key', 'canonical_name',
-        ('canonical_name', 'normalized_name', 'skill_type', 'skill_category',
-        'cluster_id', 'validation_status'), 'skill_catalog.csv'),
+        ( 'canonical_name', 'normalized_name', 'skill_type', 'skill_category', 'cluster_id', 'validation_status'),
+        'skill_dictionary.csv'),
 }
 SCD_COLUMNS = ('valid_from', 'valid_to', 'is_current', 'effective_date_basis')
 
@@ -255,7 +255,22 @@ def calendar_rows(start: date, end: date, academic_start_month: int = 9) -> list
         raise ValueError('Calendar range must be below 9999-12-31 and at most 100001 days')
     names = ('Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật')
     rows = [{column: None for column in DATE_FIELDS}]
-    rows[0]['date_key'] = 0
+    rows[0].update({
+        'date_key': 0,
+        'full_date': UNKNOWN_START,
+        'day_number': 1,
+        'day_name': 'Unknown',
+        'week_number': 0,
+        'iso_year': 1900,
+        'month_number': 1,
+        'month_name': 'Unknown',
+        'quarter_number': 1,
+        'year_number': 1900,
+        'year_month': '1900-01',
+        'year_quarter': '1900-Q1',
+        'academic_year': '1899-1900',
+        'is_weekend': False,
+    })
     cursor = start
     while cursor <= end:
         iso = cursor.isocalendar()

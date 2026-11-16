@@ -47,6 +47,10 @@ def _matches_type(value: Any, kind: str) -> bool:
     if kind == "string":
         return isinstance(value, str) and bool(value.strip())
     if kind == "date":
+        if isinstance(value, datetime):
+            return True
+        if isinstance(value, date):
+            return True
         if not isinstance(value, str):
             return False
         try:
@@ -55,6 +59,8 @@ def _matches_type(value: Any, kind: str) -> bool:
         except ValueError:
             return False
     if kind == "timestamp":
+        if isinstance(value, datetime):
+            return True
         if not isinstance(value, str):
             return False
         try:

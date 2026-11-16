@@ -69,22 +69,22 @@ tables:
     partition_by: []
     write_policy: merge
     publish_order: 32
-  - name: dim_occupation
-    layer: gold
-    trino_schema: gold
-    delta_location: s3://gold/tables/dim_occupation
-    primary_key: [occupation_id]
-    partition_by: []
-    write_policy: merge
-    publish_order: 33
-  - name: dim_industry
-    layer: gold
-    trino_schema: gold
-    delta_location: s3://gold/tables/dim_industry
-    primary_key: [industry_id]
-    partition_by: []
-    write_policy: merge
-    publish_order: 34
+  # - name: dim_occupation
+  #   layer: gold
+  #   trino_schema: gold
+  #   delta_location: s3://gold/tables/dim_occupation
+  #   primary_key: [occupation_id]
+  #   partition_by: []
+  #   write_policy: merge
+  #   publish_order: 33
+  # - name: dim_industry
+  #   layer: gold
+  #   trino_schema: gold
+  #   delta_location: s3://gold/tables/dim_industry
+  #   primary_key: [industry_id]
+  #   partition_by: []
+  #   write_policy: merge
+  #   publish_order: 34
   - name: dim_major
     layer: gold
     trino_schema: gold

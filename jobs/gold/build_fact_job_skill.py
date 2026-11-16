@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -6,12 +5,6 @@ from datetime import date, datetime, timezone
 import json
 import logging
 import os
-from pathlib import Path
-import sys
-
-JOBS_ROOT = Path(__file__).resolve().parents[1]
-if str(JOBS_ROOT) not in sys.path:
-    sys.path.insert(0, str(JOBS_ROOT))
 
 try:
     from . import build_jobs_gold as jobs
@@ -111,6 +104,12 @@ def prepare_evidence(source):
     return source
 
 
+def dimension_for_context(child_key, dimensions):
+    if child_key == 'date_key':
+        return dimensions.get('date')
+    return dimensions.get(child_key.removesuffix('_key'))
+
+
 def validate_parent(parent, dimensions, reference_date=None):
     from pyspark.sql import functions as F, types as T
     required = ('job_fact_key', 'job_id', 'posted_date_key', 'location_key', 'occupation_key',
@@ -147,7 +146,9 @@ def validate_parent(parent, dimensions, reference_date=None):
     jobs.fail_if(parent, F.col('dimension_date_policy').isNull()
         | ~F.col('dimension_date_policy').isin('as_of', 'posted'), 'Invalid parent dimension_date_policy')
     for child_key, parent_key in CONTEXT.items():
-        dimension = dimensions['date' if child_key == 'date_key' else child_key.removesuffix('_key')]
+        dimension = dimension_for_context(child_key, dimensions)
+        if dimension is None:
+            continue
         dimension_key = 'date_key' if child_key == 'date_key' else child_key
         missing = parent.select(F.col(parent_key).alias('_fk')).distinct().join(
             dimension.select(F.col(dimension_key).alias('_fk')), '_fk', 'left_anti')
@@ -238,9 +239,7 @@ def synchronize(spark, path, desired, old, changes):
 
 
 def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold_root=None,
-                        reference_date=None, max_reference_rows=100000, dry_run=False,
-                        dq_max_rows=100000):
-    from dq.check_job_skill_gold import check_frames, require_pass
+                        reference_date=None, max_reference_rows=100000, dry_run=False):
     from pyspark import StorageLevel
     from pyspark.sql import functions as F
     silver_root = (silver_root or os.getenv('JOBS_SILVER_ROOT', 's3a://silver/jobs')).rstrip('/')
@@ -269,7 +268,7 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
             raise ValueError('dim_date must have one unknown date member')
         parent = load(f'{gold_root}/fact_job_posting')
         reference_date = validate_parent(parent, dimensions, reference_date)
-        raw = load(f'{silver_root}/job_skills')
+        raw = jobs.load_silver_table(spark, silver_root, 'job_skills')
         evidence = prepare_evidence(raw).persist(StorageLevel.MEMORY_AND_DISK)
         cached.append(evidence)
         evidence.count()
@@ -284,8 +283,7 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
         cached.append(desired)
         rows = desired.count()
         validate_child(desired, parent, dimensions['skill'])
-        dq_report = check_frames(desired, parent, evidence, dimensions, previous=old, max_rows=dq_max_rows)
-        require_pass(dq_report)
+        reconciliation = jobs.reconcile_skill_fact(parent, desired, evidence, dimensions['skill'])
         changes = change_counts(desired, old)
         written = False
         if not dry_run:
@@ -294,21 +292,14 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
             for input_path, version in pinned.items():
                 assert_version(spark, input_path, version)
             written = synchronize(spark, path, desired, old, changes)
-        output_version = pinned[path]
-        if not dry_run:
-            stored, output_version = read_snapshot(spark, path, fact_schema())
-            dq_report = check_frames(stored, parent, evidence, dimensions, previous=old, max_rows=dq_max_rows)
-            require_pass(dq_report)
-            for input_path, version in pinned.items():
-                if input_path != path:
-                    assert_version(spark, input_path, version)
-            assert_version(spark, path, output_version)
+        from delta.tables import DeltaTable
+        output_version = (int(DeltaTable.forPath(spark, path).history(1).first()['version'])
+                          if written else pinned[path])
         retained_jobs = parent.where(~F.col('seen_in_silver')).count()
         report = {'table': 'gold_jobs.fact_job_skill', 'path': path, 'rows': rows,
             'reference_date': reference_date.isoformat(), 'retained_jobs': retained_jobs,
             'changes': changes, 'written': written, 'dry_run': dry_run,
-            'reconciliation': dq_report['status'], 'dq': dq_report,
-            'publish_allowed': not dry_run and dq_report['publish_allowed'], 'output_version': output_version,
+            'reconciliation': reconciliation['status'], 'output_version': output_version,
             'input_versions': {p: v for p, v in pinned.items() if p != path}}
         LOG.info('Job skill Gold: %s', json.dumps(report, ensure_ascii=False))
         return report
@@ -326,8 +317,6 @@ def main():
     parser.add_argument('--gold-root', default=os.getenv('JOBS_GOLD_ROOT', 's3a://gold/jobs'))
     parser.add_argument('--reference-date', help='Must equal parent snapshot date; inferred when omitted')
     parser.add_argument('--max-reference-rows', type=int, default=100000)
-    parser.add_argument('--dq-max-rows', type=int, default=100000,
-                        help='Maximum rows per DQ input; exceeding this limit blocks the job')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')

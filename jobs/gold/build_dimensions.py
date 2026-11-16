@@ -33,18 +33,34 @@ def build(mapping_dir: Path, silver_dir: Path, output_dir: Path) -> dict[str, in
             month_name=d.strftime("%B"), quarter_number=(d.month - 1) // 3 + 1,
             year_number=d.year, is_weekend=d.isoweekday() >= 6, is_holiday=False))
 
+    location_rows = [dict(location_id=r["location_id"], location_name=r["location_name"],
+        location_type=r.get("location_type") or "unknown", province_name=r["location_name"],
+        country_code="VN", is_current=True) for r in locations]
+    location_rows.append(dict(location_id="LOC_UNKNOWN", location_name="Unknown", location_type="unknown",
+        province_name="Unknown", country_code="VN", is_current=True))
+
+    occupation_ids = sorted({row.get("occupation_id") for row in tables.get("job_postings", []) if row.get("occupation_id")})
+    occupation_rows = [dict(occupation_id=oid, occupation_name=oid, occupation_group=None,
+        occupation_family=None, is_active=True) for oid in occupation_ids]
+    occupation_rows.append(dict(occupation_id="OCC_UNKNOWN", occupation_name="Unknown", occupation_group=None,
+        occupation_family=None, is_active=True))
+
+    skill_rows = [dict(skill_id=r["skill_id"], skill_name=r.get("skill_name") or r["skill_id"],
+        skill_category=r.get("skill_category"), skill_type=r.get("skill_type"),
+        is_active=r.get("is_active", "1").lower() not in {"0", "false"}) for r in skills]
+    if not any(r["skill_id"] == "SKILL_UNKNOWN" for r in skill_rows):
+        skill_rows.append(dict(skill_id="SKILL_UNKNOWN", skill_name="Unknown", skill_category=None,
+            skill_type=None, is_active=True))
+
     dimensions = {
         "dim_date": dim_dates,
-        "dim_location": [dict(location_id=r["location_id"], location_name=r["location_name"],
-            location_type=r.get("location_type") or "unknown", province_name=r["location_name"],
-            country_code="VN", is_current=True) for r in locations],
+        "dim_location": location_rows,
         "dim_company": [dict(company_id=cid, company_name=r["company_name"],
             company_name_normalized=r.get("company_name_normalized"), source_name=r.get("source_name"),
             is_active=True) for cid, r in sorted(company_rows.items())],
-        "dim_skill": [dict(skill_id=r["skill_id"], skill_name=r["skill_name"],
-            skill_category=r.get("skill_category"), skill_type=r.get("skill_type"),
-            is_active=r.get("is_active", "1").lower() not in {"0", "false"}) for r in skills],
-        "dim_occupation": [], "dim_industry": [], "dim_major": [],
+        "dim_skill": skill_rows,
+        "dim_occupation": occupation_rows,
+        "dim_industry": [], "dim_major": [],
         "dim_university": [], "dim_economic_indicator": [],
     }
     for name, rows in dimensions.items():

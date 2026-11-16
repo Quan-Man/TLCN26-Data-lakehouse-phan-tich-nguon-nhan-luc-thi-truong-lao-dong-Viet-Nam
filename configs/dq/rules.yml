@@ -1,9 +1,3 @@
-# DQ rules for the Delta publish catalog. PK definitions must match tables.yml.
-# Violation rates use strict > thresholds; coverage uses strict < thresholds.
-# Coverage denominator is all rows (NULL/unmapped values count as uncovered).
-# Initial coverage policy: warn below 95%, fail below 80%; review before production.
-# Structural/read/configuration errors always fail. Empty tables warn; missing tables fail.
-# Bronze rules describe the flat Delta table; raw-envelope checks remain separate.
 version: 1.0.0
 publish:
   block_on_warn: false
@@ -215,7 +209,7 @@ tables:
       warn_rate_gt: 0.0
       fail_rate_gt: 0.0
       empty: warn
-  dim_date:
+  dim_date: &dim_date_rule
     layer: gold
     primary_key: &id006
     - date_key
@@ -250,7 +244,7 @@ tables:
       warn_rate_gt: 0.0
       fail_rate_gt: 0.0
       empty: warn
-  dim_location:
+  dim_location: &dim_location_rule
     layer: gold
     primary_key: &id007
     - location_id
@@ -274,7 +268,7 @@ tables:
       warn_rate_gt: 0.0
       fail_rate_gt: 0.0
       empty: warn
-  dim_company:
+  dim_company: &dim_company_rule
     layer: gold
     primary_key: &id008
     - company_id
@@ -297,50 +291,50 @@ tables:
       warn_rate_gt: 0.0
       fail_rate_gt: 0.0
       empty: warn
-  dim_occupation:
-    layer: gold
-    primary_key: &id009
-    - occupation_id
-    grain:
-      description: One row per occupation_id
-      columns: *id009
-    not_null:
-    - occupation_id
-    - occupation_name
-    types:
-      occupation_id: string
-      occupation_name: string
-    foreign_keys: []
-    ranges: {}
-    ordered_pairs: []
-    null_dependencies: []
-    mapping_coverage: []
-    thresholds:
-      warn_rate_gt: 0.0
-      fail_rate_gt: 0.0
-      empty: warn
-  dim_industry:
-    layer: gold
-    primary_key: &id010
-    - industry_id
-    grain:
-      description: One row per industry_id
-      columns: *id010
-    not_null:
-    - industry_id
-    - industry_name
-    types:
-      industry_id: string
-      industry_name: string
-    foreign_keys: []
-    ranges: {}
-    ordered_pairs: []
-    null_dependencies: []
-    mapping_coverage: []
-    thresholds:
-      warn_rate_gt: 0.0
-      fail_rate_gt: 0.0
-      empty: warn
+  # dim_occupation:
+  #   layer: gold
+  #   primary_key: &id009
+  #   - occupation_id
+  #   grain:
+  #     description: One row per occupation_id
+  #     columns: *id009
+  #   not_null:
+  #   - occupation_id
+  #   - occupation_name
+  #   types:
+  #     occupation_id: string
+  #     occupation_name: string
+  #   foreign_keys: []
+  #   ranges: {}
+  #   ordered_pairs: []
+  #   null_dependencies: []
+  #   mapping_coverage: []
+  #   thresholds:
+  #     warn_rate_gt: 0.0
+  #     fail_rate_gt: 0.0
+  #     empty: warn
+  # dim_industry:
+  #   layer: gold
+  #   primary_key: &id010
+  #   - industry_id
+  #   grain:
+  #     description: One row per industry_id
+  #     columns: *id010
+  #   not_null:
+  #   - industry_id
+  #   - industry_name
+  #   types:
+  #     industry_id: string
+  #     industry_name: string
+  #   foreign_keys: []
+  #   ranges: {}
+  #   ordered_pairs: []
+  #   null_dependencies: []
+  #   mapping_coverage: []
+  #   thresholds:
+  #     warn_rate_gt: 0.0
+  #     fail_rate_gt: 0.0
+  #     empty: warn
   dim_major:
     layer: gold
     primary_key: &id011
@@ -363,7 +357,7 @@ tables:
       warn_rate_gt: 0.0
       fail_rate_gt: 0.0
       empty: warn
-  dim_skill:
+  dim_skill: &dim_skill_rule
     layer: gold
     primary_key: &id012
     - skill_id
@@ -430,7 +424,7 @@ tables:
       warn_rate_gt: 0.0
       fail_rate_gt: 0.0
       empty: warn
-  fact_job_posting:
+  fact_job_posting: &fact_job_posting_rule
     layer: gold
     primary_key: &id015
     - job_id
@@ -462,12 +456,12 @@ tables:
       reference_columns:
       - company_id
       nullable: true
-    - columns:
-      - occupation_id
-      references: dim_occupation
-      reference_columns:
-      - occupation_id
-      nullable: true
+    # - columns:
+    #   - occupation_id
+    #   references: dim_occupation
+    #   reference_columns:
+    #   - occupation_id
+    #   nullable: true
     - columns:
       - location_id
       references: dim_location
@@ -499,7 +493,7 @@ tables:
       warn_rate_gt: 0.0
       fail_rate_gt: 0.0
       empty: warn
-  fact_job_skill:
+  fact_job_skill: &fact_job_skill_rule
     layer: gold
     primary_key: &id016
     - job_id
@@ -694,12 +688,12 @@ tables:
       reference_columns:
       - location_id
       nullable: true
-    - columns:
-      - industry_id
-      references: dim_industry
-      reference_columns:
-      - industry_id
-      nullable: true
+    # - columns:
+    #   - industry_id
+    #   references: dim_industry
+    #   reference_columns:
+    #   - industry_id
+    #   nullable: true
     ranges:
       enterprise_count:
         min: 0
@@ -875,3 +869,75 @@ tables:
       warn_rate_gt: 0.0
       fail_rate_gt: 0.0
       empty: warn
+
+# Schema Delta da tuyen dung doc boi jobs/gold/load_job_postgres.py.
+profiles:
+  gold_jobs_postgres:
+    dim_date:
+      <<: *dim_date_rule
+      not_null: [date_key]
+      not_null_except:
+        full_date: {column: date_key, value: 0}
+    dim_location:
+      <<: *dim_location_rule
+      primary_key: [location_key]
+      grain: {description: One row per location version, columns: [location_key]}
+      not_null: [location_key, location_id, location_name, valid_from, valid_to, is_current]
+      types: {location_key: string, location_id: string, location_name: string, valid_from: date, valid_to: date, is_current: boolean}
+    dim_company:
+      <<: *dim_company_rule
+      primary_key: [company_key]
+      grain: {description: One row per company version, columns: [company_key]}
+      not_null: [company_key, company_id, company_name, valid_from, valid_to, is_current]
+      types: {company_key: string, company_id: string, company_name: string, valid_from: date, valid_to: date, is_current: boolean}
+    dim_skill:
+      <<: *dim_skill_rule
+      primary_key: [skill_key]
+      grain: {description: One row per skill version, columns: [skill_key]}
+      not_null: [skill_key, skill_id, canonical_name, valid_from, valid_to, is_current]
+      types: {skill_key: string, skill_id: string, canonical_name: string, valid_from: date, valid_to: date, is_current: boolean}
+    fact_job_posting:
+      <<: *fact_job_posting_rule
+      grain: {description: One row per Gold job fact key, columns: [job_fact_key]}
+      not_null: [job_fact_key, job_id, job_title, posted_date_key, expiration_date_key, company_key, location_key]
+      types:
+        job_fact_key: string
+        job_id: string
+        posted_date_key: integer
+        expiration_date_key: integer
+        company_key: string
+        location_key: string
+        salary_min_vnd: numeric
+        salary_max_vnd: numeric
+        is_active: boolean
+      foreign_keys:
+      - {columns: [posted_date_key], references: dim_date, reference_columns: [date_key], nullable: false}
+      - {columns: [expiration_date_key], references: dim_date, reference_columns: [date_key], nullable: false}
+      - {columns: [company_key], references: dim_company, reference_columns: [company_key], nullable: false}
+      - {columns: [location_key], references: dim_location, reference_columns: [location_key], nullable: false}
+      ranges:
+        salary_min_vnd: {min: 0, nullable: true}
+        salary_max_vnd: {min: 0, nullable: true}
+      ordered_pairs: [[salary_min_vnd, salary_max_vnd]]
+      mapping_coverage:
+      - column: location_key
+        references: dim_location
+        reference_column: location_key
+        exclude_reference_values: ['0']
+        denominator: all_rows
+        warn_below: 0.95
+        fail_below: 0.8
+    fact_job_skill:
+      <<: *fact_job_skill_rule
+      grain: {description: One row per job fact and skill version, columns: [job_fact_key, skill_key]}
+      not_null: [job_fact_key, job_id, skill_key, skill_id]
+      types:
+        job_fact_key: string
+        job_id: string
+        skill_key: string
+        skill_id: string
+        is_required: boolean
+        confidence_score: numeric
+      foreign_keys:
+      - {columns: [job_fact_key, job_id], references: fact_job_posting, reference_columns: [job_fact_key, job_id], nullable: false}
+      - {columns: [skill_key, skill_id], references: dim_skill, reference_columns: [skill_key, skill_id], nullable: false}

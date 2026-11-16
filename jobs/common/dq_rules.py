@@ -1,4 +1,3 @@
-"""Versioned DQ rules and publish decisions shared by file and Delta checks."""
 from __future__ import annotations
 
 import csv
@@ -12,15 +11,27 @@ from .settings import Settings, load_yaml
 from .table_catalog import load_table_catalog
 
 
-def load_rules(path=None):
+def load_rules(path=None, *, profile=None):
     settings = Settings.from_env()
     path = Path(path).resolve() if path else settings.config_path('dq', 'rules.yml')
     config = load_yaml(path)
     if not isinstance(config, dict) or not isinstance(config.get('version'), str):
         raise ValueError('DQ rules require a string version')
     catalog = load_table_catalog()
-    if set(config.get('tables', {})) != set(catalog):
-        raise ValueError('DQ tables must exactly match configs/tables.yml')
+    dq_tables = set(config.get('tables', {}))
+    catalog_tables = set(catalog)
+
+    missing_in_dq = sorted(catalog_tables - dq_tables)
+    extra_in_dq = sorted(dq_tables - catalog_tables)
+
+    if missing_in_dq or extra_in_dq:
+        print("\n========== DQ TABLE CATALOG MISMATCH ==========")
+        print("Missing in rules.yml:", missing_in_dq)
+        print("Extra in rules.yml:", extra_in_dq)
+
+        raise ValueError(
+            "DQ tables must exactly match configs/tables.yml"
+        )
     if set(config.get('publish', {})) != {'block_on_warn'}:
         raise ValueError('Invalid DQ publish policy')
     if any(type(v) is not bool for v in config['publish'].values()):
@@ -28,9 +39,23 @@ def load_rules(path=None):
     for name, rule in config['tables'].items():
         if rule['primary_key'] != catalog[name]['primary_key'] or rule['layer'] != catalog[name]['layer']:
             raise ValueError(f'DQ/catalog key or layer mismatch: {name}')
+    rules = config['tables']
+    if profile is not None:
+        overrides = config.get('profiles', {}).get(profile)
+        if not isinstance(overrides, dict) or not overrides or set(overrides) - set(rules):
+            raise ValueError(f'Unknown or invalid DQ profile: {profile}')
+        if any(rule['layer'] != rules[name]['layer'] for name, rule in overrides.items()):
+            raise ValueError(f'DQ profile cannot change a table layer: {profile}')
+        rules = {**rules, **overrides}
+    for name, rule in rules.items():
         grain = rule['grain']['columns']
         if not grain or len(set(grain)) != len(grain):
             raise ValueError(f'Invalid grain: {name}')
+        for field, exception in rule.get('not_null_except', {}).items():
+            if (field in rule['not_null'] or field in rule['primary_key']
+                    or set(exception) != {'column', 'value'}
+                    or not exception['column'] or exception['value'] is None):
+                raise ValueError(f'Invalid not_null_except: {name}.{field}')
         if any(kind not in {'string', 'date', 'timestamp', 'boolean', 'integer', 'numeric', 'array'}
                for kind in rule['types'].values()):
             raise ValueError(f'Unknown column type: {name}')
@@ -52,6 +77,9 @@ def load_rules(path=None):
             if 'min' in bounds and 'max' in bounds and bounds['min'] > bounds['max']:
                 raise ValueError(f'Reversed numeric range: {name}')
     config = dict(config)
+    config['tables'] = rules
+    if profile is not None:
+        config['profile'] = profile
     config['checksum'] = hashlib.sha256(path.read_bytes()).hexdigest()
     return config
 
@@ -70,10 +98,8 @@ def load_references(config, root=None):
         result[name] = rows
     return result
 
-
 def blank(value):
     return value is None or isinstance(value, str) and not value.strip()
-
 
 def number(value):
     if isinstance(value, bool):
@@ -85,11 +111,6 @@ def number(value):
 
 
 def evaluate_tables(tables, config=None, *, references=None, selected=None, issues=()):
-    """Evaluate materialized rows; suitable for the project's local batch snapshots.
-
-    Duplicate counts count excess rows. Violation rates are per check, with all
-    table rows as denominator. Missing inputs/references always block publish.
-    """
     from dq._common import _matches_type
     config = config or load_rules()
     selected = list(selected) if selected is not None else list(config['tables'])
@@ -124,6 +145,10 @@ def evaluate_tables(tables, config=None, *, references=None, selected=None, issu
                 emit(name, 'EMPTY_TABLE', 0, 0, severity='error' if level == 'fail' else 'warning')
         for field in set(rule['not_null']) | set(rule['primary_key']):
             emit(name, 'NULL:' + field, sum(blank(r.get(field)) for r in rows), total)
+        for field, exception in rule.get('not_null_except', {}).items():
+            invalid = sum(blank(row.get(field)) and row.get(exception['column']) != exception['value']
+                          for row in rows)
+            emit(name, 'NULL:' + field, invalid, total)
         for label, fields in [('PK', rule['primary_key']), ('GRAIN', rule['grain']['columns'])]:
             keys = [json.dumps([r.get(f) for f in fields], sort_keys=True, default=str) for r in rows]
             emit(name, 'DUPLICATE_' + label, sum(v - 1 for v in Counter(keys).values()), total)
@@ -187,14 +212,18 @@ def evaluate_tables(tables, config=None, *, references=None, selected=None, issu
             if parent is None:
                 emit(name, 'MISSING_MAPPING:' + coverage['references'], 1, total, severity='error')
                 continue
+            excluded = set(coverage.get('exclude_reference_values', []))
             values = {r.get(coverage['reference_column']) for r in parent
-                      if not blank(r.get(coverage['reference_column']))}
+                      if not blank(r.get(coverage['reference_column']))
+                      and r.get(coverage['reference_column']) not in excluded}
             matched = sum(not blank(r.get(coverage['column'])) and r.get(coverage['column']) in values for r in rows)
             ratio = matched / total if total else None
             metrics[name]['mapping_coverage'][coverage['column']] = ratio
             if ratio is not None and ratio < coverage['warn_below']:
                 emit(name, 'MAPPING_COVERAGE:' + coverage['column'], total - matched, total,
-                     severity='error' if ratio < coverage['fail_below'] else 'warning')
+                     severity='error' if ratio < coverage['fail_below'] else 'warning',
+                     detail=f'{coverage["column"]}: {matched}/{total} mapped ({ratio:.2%}), '
+                            f'minimum {coverage["fail_below"]:.2%}')
     counts = Counter(item['severity'] for item in findings)
     allowed = not counts['error'] and not (config['publish']['block_on_warn'] and counts['warning'])
     return dict(rules_version=config['version'], rules_checksum=config['checksum'],
