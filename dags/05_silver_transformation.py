@@ -1,5 +1,14 @@
 
-"""Economic & Labour Bronze -> Silver -> Data Quality."""
+"""Silver transformation and Data Quality for Education and Economy.
+
+Education:
+    Bronze -> Silver -> Data Quality
+
+Economy:
+    Bronze -> Silver -> Data Quality
+
+Enable or disable each source using configuration flags.
+"""
 
 from datetime import timedelta
 
@@ -8,13 +17,34 @@ from airflow import DAG
 from airflow.operators.bash import BashOperator
 
 
+# ============================================================
+# 1. ENABLE / DISABLE DATA SOURCES
+# ============================================================
+
+ENABLE_EDUCATION = True
+ENABLE_ECONOMY = False
+
+
+# ============================================================
+# 2. CONFIGURATION
+# ============================================================
+
 LOCAL_TZ = pendulum.timezone("Asia/Ho_Chi_Minh")
 
+if not (ENABLE_EDUCATION or ENABLE_ECONOMY):
+    raise ValueError(
+        "At least one data source must be enabled."
+    )
+
+
+# ============================================================
+# 3. AIRFLOW DAG
+# ============================================================
 
 with DAG(
     dag_id="05_silver_transformation",
     description=(
-        "Economic and Labour Bronze official to Silver official Delta Lake "
+        "Education and Economy Bronze to Silver Delta Lake "
         "with Data Quality"
     ),
     start_date=pendulum.datetime(
@@ -31,7 +61,8 @@ with DAG(
     },
     tags=[
         "silver",
-        "economic",
+        "education",
+        "economy",
         "labour",
         "enterprise",
         "spark",
@@ -41,32 +72,55 @@ with DAG(
     ],
 ) as dag:
 
-    # =====================================================
-    # 1. Bronze -> Silver
-    # =====================================================
+    # ========================================================
+    # 4. EDUCATION SILVER
+    # ========================================================
 
-    build_economic_silver = BashOperator(
-        task_id="build_economic_silver",
-        bash_command=(
-            "python "
-            "/opt/airflow/jobs/silver/clean_economic.py"
-        ),
-    )
+    if ENABLE_EDUCATION:
 
-    # =====================================================
-    # 2. Silver Data Quality
-    # =====================================================
+        build_education_silver = BashOperator(
+            task_id="build_education_silver",
+            bash_command=(
+                "python /opt/airflow/jobs/silver/clean_admissions.py"
+            ),
+        )
 
-    check_economic_silver = BashOperator(
-        task_id="check_economic_silver",
-        bash_command=(
-            "python "
-            "/opt/airflow/jobs/dq/check_economic_silver.py"
-        ),
-    )
+        check_education_silver = BashOperator(
+            task_id="check_education_silver",
+            bash_command=(
+                "python /opt/airflow/jobs/dq/check_education_silver.py"
+            ),
+        )
 
-    # =====================================================
-    # 3. Task Dependencies
-    # =====================================================
+        # Education: Bronze -> Silver -> Data Quality
+        build_education_silver >> check_education_silver
 
-    build_economic_silver >> check_economic_silver
+    # ========================================================
+    # 5. ECONOMY SILVER
+    # ========================================================
+
+    if ENABLE_ECONOMY:
+
+        build_economic_silver = BashOperator(
+            task_id="build_economic_silver",
+            bash_command=(
+                "python /opt/airflow/jobs/silver/clean_economic.py"
+            ),
+        )
+
+        check_economic_silver = BashOperator(
+            task_id="check_economic_silver",
+            bash_command=(
+                "python /opt/airflow/jobs/dq/check_economic_silver.py"
+            ),
+        )
+
+        # Economy: Bronze -> Silver -> Data Quality
+        build_economic_silver >> check_economic_silver
+
+    # ========================================================
+    # 6. CROSS-SOURCE DEPENDENCIES
+    # ========================================================
+
+    # Education and Economy are independent pipelines.
+    # No dependency between the two source groups.
