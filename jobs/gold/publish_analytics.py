@@ -1,10 +1,3 @@
-"""Stage verified version-pinned BI snapshots, create views, activate ONE pointer.
-
-All published tables append immutable _publication_id partitions. BI views join
-these partitions to a single Delta publication_manifest row. Failed staging
-cannot make a partial release current. One Airflow publisher writer is required;
-there is no claimed distributed transaction across the source tables/views.
-"""
 from __future__ import annotations
 
 from datetime import datetime,timezone

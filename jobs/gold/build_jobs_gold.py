@@ -387,7 +387,6 @@ def upsert_fact(spark, path, fact, old):
 
 
 def reconcile_skill_fact(fact_jobs, fact_skills, silver_skills, dim_skill):
-    """Read-only: count + exact required skill IDs, no write to either fact."""
     from pyspark.sql import functions as F, types as T
     require_columns(fact_jobs, ('job_fact_key', 'job_id', 'skill_count', 'seen_in_silver'), 'fact_job_posting')
     require_columns(fact_skills, ('job_fact_key', 'skill_key', 'is_required'), 'fact_job_skill')

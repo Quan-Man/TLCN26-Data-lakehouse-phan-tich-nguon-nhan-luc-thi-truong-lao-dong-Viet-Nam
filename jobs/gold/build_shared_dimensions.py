@@ -42,7 +42,7 @@ SPECS = {
     #     'industry_section', 'industry_level', 'parent_industry_code'),
     #     'industry_mapping.csv'),
     'skill': DimensionSpec('skill', 'skill_id', 'skill_key', 'canonical_name',
-        ( 'canonical_name', 'normalized_name', 'skill_type', 'skill_category', 'cluster_id', 'validation_status'),
+        ( 'canonical_name', 'normalized_name', 'skill_type', 'skill_category'),
         'skill_dictionary.csv'),
 }
 SCD_COLUMNS = ('valid_from', 'valid_to', 'is_current', 'effective_date_basis')
@@ -248,11 +248,17 @@ DATE_FIELDS = ('date_key', 'full_date', 'day_number', 'day_name', 'week_number',
                'year_number', 'year_month', 'year_quarter', 'academic_year', 'is_weekend')
 
 
-def calendar_rows(start: date, end: date, academic_start_month: int = 9) -> list[dict[str, Any]]:
-    if not 1 <= academic_start_month <= 12 or start > end:
-        raise ValueError('Invalid date range or academic_start_month')
-    if start.year < 1 or end >= OPEN_END or (end - start).days > 100000:
-        raise ValueError('Calendar range must be below 9999-12-31 and at most 100001 days')
+def observed_date_rows(days: Iterable[date], academic_start_month: int = 9) -> list[dict[str, Any]]:
+    """One row per distinct observed day, plus the reserved unknown member."""
+    if not 1 <= academic_start_month <= 12:
+        raise ValueError('academic_start_month must be between 1 and 12')
+    days = set(days)
+    if any(not isinstance(day, date) or isinstance(day, datetime) or day >= OPEN_END for day in days):
+        raise ValueError('Source dates must be date values before 9999-12-31')
+    if not days:
+        raise ValueError('No non-null dates in the configured sources; refusing to clear dim_date')
+    if len(days) > 100001:
+        raise ValueError('More than 100001 distinct source dates; use a distributed reference pipeline')
     names = ('Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật')
     rows = [{column: None for column in DATE_FIELDS}]
     rows[0].update({
@@ -271,8 +277,7 @@ def calendar_rows(start: date, end: date, academic_start_month: int = 9) -> list
         'academic_year': '1899-1900',
         'is_weekend': False,
     })
-    cursor = start
-    while cursor <= end:
+    for cursor in sorted(days):
         iso = cursor.isocalendar()
         academic_year = cursor.year if cursor.month >= academic_start_month else cursor.year - 1
         quarter = (cursor.month - 1) // 3 + 1
@@ -282,8 +287,15 @@ def calendar_rows(start: date, end: date, academic_start_month: int = 9) -> list
             f'Tháng {cursor.month}', quarter, cursor.year, cursor.strftime('%Y-%m'),
             f'{cursor.year}-Q{quarter}', f'{academic_year}-{academic_year + 1}',
             cursor.weekday() >= 5))))
-        cursor += timedelta(days=1)
     return rows
+
+
+def calendar_rows(start: date, end: date, academic_start_month: int = 9) -> list[dict[str, Any]]:
+    """Legacy helper for other modules; the shared Gold builder never calls it."""
+    if start > end or end >= OPEN_END or (end - start).days > 100000:
+        raise ValueError('Invalid legacy calendar range')
+    return observed_date_rows((start + timedelta(days=offset)
+                              for offset in range((end - start).days + 1)), academic_start_month)
 
 
 def make_spark(app_name: str = 'gold-shared-dimensions', use_s3: bool = True):
@@ -397,8 +409,9 @@ def read_catalog(spark, path: str, spec: DimensionSpec, source_format: str = 'au
 
 
 def merge_rows(spark, path: str, rows: list[dict[str, Any]], schema,
-               key_column: str, existing: list[dict[str, Any]] | None) -> bool:
-    """One atomic merge, skip exact no-op reruns. Never delete absent keys."""
+               key_column: str, existing: list[dict[str, Any]] | None, *,
+               sync_calendar: bool = False) -> bool:
+    """Atomic merge. Only a deliberately synchronized calendar deletes keys."""
     from delta.tables import DeltaTable
     from pyspark.sql import functions as F
     if existing is not None:
@@ -411,10 +424,139 @@ def merge_rows(spark, path: str, rows: list[dict[str, Any]], schema,
         frame.write.format('delta').mode('errorifexists').save(path)
     else:
         compare = ' OR '.join(f'NOT (t.`{c}` <=> s.`{c}`)' for c in frame.columns if c != key_column)
-        (DeltaTable.forPath(spark, path).alias('t')
+        merge = (DeltaTable.forPath(spark, path).alias('t')
             .merge(frame.alias('s'), F.col(f't.{key_column}') == F.col(f's.{key_column}'))
-            .whenMatchedUpdateAll(condition=compare).whenNotMatchedInsertAll().execute())
+            .whenMatchedUpdateAll(condition=compare).whenNotMatchedInsertAll())
+        if sync_calendar:
+            if key_column != 'date_key' or 0 not in after:
+                raise ValueError('Calendar synchronization requires date_key and unknown key 0')
+            merge = merge.whenNotMatchedBySourceDelete(condition='t.date_key <> 0')
+        merge.execute()
     return True
+
+
+def reconcile_observed_dates(previous: list[dict[str, Any]], days: Iterable[date],
+                             academic_start_month: int):
+    """Synchronize observed dates while preserving their YYYYMMDD keys."""
+    seen = set()
+    for row in previous:
+        key, day = row['date_key'], row['full_date']
+        if key in seen:
+            raise ValueError('dim_date: duplicate keys in existing table')
+        seen.add(key)
+        if key == 0:
+            # Older jobs used NULL for the unknown date. Migrate that row to
+            # the existing unknown convention without changing its key.
+            continue
+        if not isinstance(day, date) or isinstance(day, datetime):
+            raise ValueError('dim_date: invalid existing full_date')
+        if key != day.year * 10000 + day.month * 100 + day.day:
+            raise ValueError('dim_date: incompatible existing date_key; migrate explicitly')
+    rows = observed_date_rows(days, academic_start_month)
+    removed = sorted(seen - {row['date_key'] for row in rows} - {0})
+    return rows, removed
+
+
+def parse_date_sources(values: Iterable[str]) -> dict[str, tuple[str, ...]]:
+    """CLI form PATH::column1,column2; repeat for education/economy sources."""
+    result = {}
+    for value in values:
+        path, separator, raw_columns = value.rpartition('::')
+        columns = tuple(dict.fromkeys(column.strip() for column in raw_columns.split(',') if column.strip()))
+        if not separator or not path.strip() or not columns:
+            raise ValueError('Use --date-source "PATH::column1,column2"')
+        path = path.strip()
+        result[path] = tuple(dict.fromkeys((*result.get(path, ()), *columns)))
+    if not result:
+        raise ValueError('At least one date source with explicit column names is required')
+    return result
+
+
+def read_observed_dates(spark, sources: Mapping[str, Iterable[str]], source_format: str = 'auto'):
+    """Union distinct real dates. NULL/blank values do not create date members."""
+    from pyspark.sql import functions as F
+    combined = None
+    for path, columns in sources.items():
+        if not hadoop_exists(spark, path):
+            raise FileNotFoundError(f'Missing date source: {path}')
+        suffix = Path(urlparse(path).path).suffix.lower()
+        fmt = source_format if source_format != 'auto' else {
+            '.csv': 'csv', '.json': 'json', '.jsonl': 'json', '.parquet': 'parquet'
+        }.get(suffix)
+        if fmt is None:
+            fmt = 'delta' if hadoop_exists(spark, f'{path.rstrip("/")}/_delta_log') else 'parquet'
+        reader = spark.read.format(fmt)
+        if fmt == 'csv':
+            reader = (reader.option('header', 'true').option('encoding', 'UTF-8')
+                      .option('multiLine', 'true').option('escape', '"').option('mode', 'FAILFAST'))
+        frame = reader.load(path)
+        renamed = [column.lstrip('\ufeff').strip() for column in frame.columns]
+        if len(set(renamed)) != len(renamed):
+            raise ValueError(f'Duplicate headers in date source: {path}')
+        frame = frame.toDF(*renamed)
+        missing = set(columns) - set(frame.columns)
+        if missing:
+            raise ValueError(f'{path}: missing configured date columns {sorted(missing)}')
+        raw = frame.select(F.explode(F.array(*[
+            F.trim(F.col('`' + column.replace('`', '``') + '`').cast('string'))
+            for column in columns])).alias('_raw_date'))
+        parsed = raw.withColumn('full_date', F.to_date(F.col('_raw_date')))
+        invalid = parsed.filter(F.col('_raw_date').isNotNull() & (F.col('_raw_date') != '')
+                                & F.col('full_date').isNull()).limit(5).collect()
+        if invalid:
+            raise ValueError(f'{path}: invalid date values {[row["_raw_date"] for row in invalid]}; '
+                             'normalize dates in Silver before building Gold')
+        dates = parsed.filter(F.col('full_date').isNotNull()).select('full_date').distinct()
+        combined = dates if combined is None else combined.unionByName(dates)
+    if combined is None:
+        raise ValueError('No configured date sources')
+    records = bounded_rows(combined.distinct(), 100001)
+    return [row['full_date'] for row in records]
+
+
+def check_removed_date_references(spark, removed_keys: list[int], output_root: str,
+                                  extra_roots: Iterable[str] = ()) -> list[str]:
+    """Reject shrinking dates referenced by live date_key/*_date_key columns.
+
+    Standard sibling domains are scanned one level deep. Custom layouts must
+    supply their domain root or exact Delta table path as an extra root. Published
+    snapshots are independent datasets and are not rewritten by this job.
+    """
+    if not removed_keys:
+        return []
+    from delta.tables import DeltaTable
+    from pyspark.sql import functions as F
+    parent = output_root.rsplit('/', 1)[0]
+    roots = {f'{parent}/{name}' for name in ('jobs', 'education', 'economy', 'labor')}
+    roots.update(root.rstrip('/') for root in extra_roots)
+    removed = spark.createDataFrame([(key,) for key in removed_keys], '_removed_date_key long')
+    checked = []
+    for root in sorted(roots):
+        if not hadoop_exists(spark, root):
+            continue
+        if DeltaTable.isDeltaTable(spark, root):
+            paths = [root]
+        else:
+            jpath = spark._jvm.org.apache.hadoop.fs.Path(root)
+            fs = jpath.getFileSystem(spark._jsc.hadoopConfiguration())
+            paths = [item.getPath().toString() for item in fs.listStatus(jpath)
+                     if item.isDirectory() and not item.getPath().getName().startswith(('_', '.'))]
+        for path in sorted(paths):
+            if not DeltaTable.isDeltaTable(spark, path):
+                continue
+            frame = spark.read.format('delta').load(path)
+            columns = [column for column in frame.columns
+                       if column == 'date_key' or column.endswith('_date_key')]
+            for column in columns:
+                references = frame.select(F.col(f'`{column}`').cast('long').alias('_removed_date_key'))
+                sample = references.join(removed, '_removed_date_key', 'left_semi').limit(1).collect()
+                if sample:
+                    raise ValueError(f'Cannot shrink dim_date: {path}.{column} still references '
+                                     f'date_key={sample[0][0]}. Include all contributing date sources '
+                                     'or migrate dependent facts before retrying. No dimensions were written.')
+            if columns:
+                checked.append(path)
+    return sorted(set(checked))
 
 
 def attach_dimension_key(facts, dimension, name: str, source_id_column: str | None = None,
@@ -455,7 +597,7 @@ def attach_date_key(facts, dim_date, source_column: str, output_key: str):
     if output_key in facts.columns:
         raise ValueError(f'Output key already exists: {output_key}')
     left = facts.alias('_fact')
-    right = dim_date.select(F.col('full_date').alias('_lookup_date'),
+    right = dim_date.filter(F.col('date_key') != 0).select(F.col('full_date').alias('_lookup_date'),
                            F.col('date_key').alias('_lookup_key')).alias('_calendar')
     parsed = F.col(f'_fact.`{source_column}`').cast('date')
     joined = left.join(right, parsed == F.col('_calendar._lookup_date'), 'left')
@@ -466,22 +608,40 @@ def attach_date_key(facts, dim_date, source_column: str, output_key: str):
 
 def build_shared_dimensions(spark=None, *, sources: Mapping[str, str] | None = None,
                             output_root: str | None = None, as_of: date | str | None = None,
-                            date_start: date | str = '2010-01-01',
+                            date_start: date | str | None = None,
                             date_end: date | str | None = None, academic_start_month: int = 9,
                             source_format: str = 'auto', max_reference_rows: int = 100000,
-                            dry_run: bool = False) -> dict[str, dict[str, Any]]:
+                            dry_run: bool = False, sync_calendar: bool = True,
+                            date_reference_roots: Iterable[str] = (),
+                            date_sources: Mapping[str, Iterable[str]] | None = None,
+                            date_source_format: str = 'auto') -> dict[str, dict[str, Any]]:
     """Airflow-friendly entry point. An injected SparkSession is never stopped."""
     as_of = parse_date(as_of, 'as_of') or date.today()
-    date_start = parse_date(date_start, 'date_start')
-    date_end = parse_date(date_end, 'date_end') or date(as_of.year + 2, 12, 31)
-    if date_start is None or max_reference_rows < 1:
-        raise ValueError('date_start is required and max_reference_rows must be positive')
+    if date_start is not None or date_end is not None:
+        LOG.warning('date_start/date_end are ignored: dim_date uses only dates present in date_sources')
+    if not sync_calendar:
+        raise ValueError('Observed-date mode requires synchronization; sync_calendar=False is unsupported')
+    if not date_sources:
+        raise ValueError('Provide date_sources={"Silver path": ["posted_date", "expiration_date"]}; '
+                         'automatic calendar generation is disabled')
+    normalized_sources = {}
+    for path, columns in date_sources.items():
+        if not isinstance(path, str) or not path.strip() or isinstance(columns, str):
+            raise ValueError('Each date source needs a nonempty path and a sequence of column names')
+        columns = tuple(columns)
+        if not columns or any(not isinstance(column, str) or not column.strip() for column in columns):
+            raise ValueError(f'{path}: nonempty date column names are required')
+        normalized_sources[path] = tuple(dict.fromkeys(column.strip() for column in columns))
+    date_sources = normalized_sources
+    if max_reference_rows < 1:
+        raise ValueError('max_reference_rows must be positive')
     output_root = (output_root or os.getenv('SHARED_GOLD_ROOT', 's3a://gold/shared')).rstrip('/')
     mapping_root = os.getenv('SHARED_MAPPING_ROOT', '/opt/airflow/configs/mappings').rstrip('/')
     sources = dict(sources or {name: f'{mapping_root}/{spec.filename}' for name, spec in SPECS.items()})
     if set(sources) != set(SPECS):
-        raise ValueError(f'Exactly four catalog sources are required: {list(SPECS)}')
-    paths = [output_root, *sources.values()]
+        raise ValueError(f'Exactly these catalog sources are required: {list(SPECS)}')
+    date_reference_roots = tuple(date_reference_roots)
+    paths = [output_root, *sources.values(), *date_reference_roots, *date_sources]
     if any(path.startswith('s3://') for path in paths):
         raise ValueError('Use s3a:// for Spark paths; s3:// is for Trino registration')
     owns_spark = spark is None
@@ -501,36 +661,25 @@ def build_shared_dimensions(spark=None, *, sources: Mapping[str, str] | None = N
             prepared[name] = result, schema, path, old
             report[f'dim_{name}'] = {'rows': len(result), 'path': path,
                 'current_members': sum(r['is_current'] for r in result) - 1}
-        dates = calendar_rows(date_start, date_end, academic_start_month)
+        observed_days = read_observed_dates(spark, date_sources, date_source_format)
         path, schema = f'{output_root}/dim_date', date_schema()
         old_frame = existing_delta(spark, path, schema)
         old_dates = bounded_rows(old_frame, 100002) if old_frame is not None else None
-        combined = {row['date_key']: row for row in (old_dates or [])}
-        if len(combined) != len(old_dates or []):
-            raise ValueError('dim_date: duplicate keys in existing table')
-        for row in dates:
-            if row['date_key'] in combined and combined[row['date_key']] != row:
-                raise ValueError('dim_date: existing date attributes differ; migrate explicitly')
-            combined[row['date_key']] = row
-        dates = sorted(combined.values(), key=lambda row: row['date_key'])
-        # Expand, never shrink, and fill any gap in the combined calendar range.
+        dates, removed = reconcile_observed_dates(old_dates or [], observed_days, academic_start_month)
+        checked = check_removed_date_references(spark, removed, output_root, date_reference_roots)
         actual = [row['full_date'] for row in dates if row['date_key'] != 0]
-        if actual:
-            if any(not isinstance(value, date) for value in actual):
-                raise ValueError('dim_date: invalid existing date')
-            full = calendar_rows(min(actual), max(actual), academic_start_month)
-            expected = {row['date_key']: row for row in full}
-            for row in combined.values():
-                if expected.get(row['date_key']) != row:
-                    raise ValueError('dim_date: invalid existing calendar row')
-            dates = full
         prepared['date'] = dates, schema, path, old_dates
         report['dim_date'] = {'rows': len(dates), 'path': path,
             'start': min(actual).isoformat() if actual else None,
-            'end': max(actual).isoformat() if actual else None}
+            'end': max(actual).isoformat() if actual else None,
+            'date_mode': 'observed', 'source_date_count': len(dates) - 1,
+            'date_sources': {path: list(columns) for path, columns in date_sources.items()},
+            'sync_calendar': sync_calendar, 'removed_date_keys': len(removed),
+            'checked_reference_tables': checked}
         for name, (rows, schema, path, previous) in prepared.items():
             key = 'date_key' if name == 'date' else SPECS[name].key_column
-            changed = False if dry_run else merge_rows(spark, path, rows, schema, key, previous)
+            changed = False if dry_run else merge_rows(spark, path, rows, schema, key, previous,
+                                                       sync_calendar=sync_calendar and name == 'date')
             report[f'dim_{name}'].update(written=changed, dry_run=dry_run)
             LOG.info('%s: %s', f'dim_{name}', json.dumps(report[f'dim_{name}'], ensure_ascii=False))
         return report
@@ -546,8 +695,15 @@ def main() -> None:
         parser.add_argument(f'--{name}-source', default=f'{mapping_root}/{spec.filename}')
     parser.add_argument('--output-root', default=os.getenv('SHARED_GOLD_ROOT', 's3a://gold/shared'))
     parser.add_argument('--as-of', default=date.today().isoformat())
-    parser.add_argument('--date-start', default=os.getenv('SHARED_DATE_START', '2010-01-01'))
-    parser.add_argument('--date-end', default=os.getenv('SHARED_DATE_END'))
+    parser.add_argument('--date-source', action='append', required=True,
+                        help='PATH::column1,column2; repeat for every contributing Silver source')
+    parser.add_argument('--date-source-format', choices=['auto', 'csv', 'json', 'parquet', 'delta'], default='auto')
+    parser.add_argument('--date-start', help='Deprecated and ignored; no date range is generated')
+    parser.add_argument('--date-end', help='Deprecated and ignored; no date range is generated')
+    parser.add_argument('--sync-calendar', action='store_true', default=True,
+                        help='Compatibility flag; observed-date synchronization is always enabled')
+    parser.add_argument('--date-reference-root', action='append', default=[],
+                        help='Additional Gold domain root or Delta table path to check before shrinking')
     parser.add_argument('--academic-start-month', type=int, default=9)
     parser.add_argument('--source-format', choices=['auto', 'csv', 'json', 'parquet', 'delta'], default='auto')
     parser.add_argument('--max-reference-rows', type=int, default=100000)
@@ -558,7 +714,9 @@ def main() -> None:
         output_root=args.output_root, as_of=args.as_of, date_start=args.date_start,
         date_end=args.date_end, academic_start_month=args.academic_start_month,
         source_format=args.source_format, max_reference_rows=args.max_reference_rows,
-        dry_run=args.dry_run)
+        dry_run=args.dry_run, sync_calendar=args.sync_calendar,
+        date_reference_roots=args.date_reference_root,
+        date_sources=parse_date_sources(args.date_source), date_source_format=args.date_source_format)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 

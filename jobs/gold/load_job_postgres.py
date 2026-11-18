@@ -22,7 +22,7 @@ GOLD_ROOT = os.getenv('JOBS_GOLD_ROOT', 's3a://gold/jobs')
 DEFAULT_SILVER_ROOT = 's3a://silver/jobs'
 DIMENSIONS = {
     'dim_date': ('date_key', ['date_key', 'full_date', 'day_of_month', 'day_of_week', 'day_name', 'week_of_year', 'month_number', 'month_name', 'quarter_number', 'year_number', 'is_weekend', 'is_holiday']),
-    'dim_location': ('location_id', ['location_id', 'location_name', 'location_type', 'province_name', 'region_name', 'country_code', 'valid_from', 'valid_to', 'is_current']),
+    'dim_location': ('location_id', ['location_id', 'location_name', 'location_type', 'province_name', 'region_name', 'valid_from', 'valid_to', 'is_current']),
     'dim_company': ('company_id', ['company_id', 'company_name', 'company_name_normalized', 'company_size', 'industry_id', 'is_active', 'source_name']),
     #'dim_occupation': ('occupation_id', ['occupation_id', 'occupation_name', 'occupation_group', 'occupation_family', 'is_active']),
     #'dim_industry': ('industry_id', ['industry_id', 'industry_name', 'parent_industry_id', 'industry_level', 'is_active']),
