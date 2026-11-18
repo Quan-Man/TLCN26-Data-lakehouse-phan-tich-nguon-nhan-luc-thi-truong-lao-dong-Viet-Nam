@@ -1,18 +1,10 @@
 
-"""Silver transformation and Data Quality for Education and Economy.
-
-Education:
-    Bronze -> Silver -> Data Quality
-
-Economy:
-    Bronze -> Silver -> Data Quality
-
-Enable or disable each source using configuration flags.
-"""
+"""Bronze to Silver transformation for Jobs, Education and Economy."""
 
 from datetime import timedelta
 
 import pendulum
+
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 
@@ -21,8 +13,9 @@ from airflow.operators.bash import BashOperator
 # 1. ENABLE / DISABLE DATA SOURCES
 # ============================================================
 
+ENABLE_JOBS = True
 ENABLE_EDUCATION = True
-ENABLE_ECONOMY = False
+ENABLE_ECONOMY = True
 
 
 # ============================================================
@@ -31,49 +24,74 @@ ENABLE_ECONOMY = False
 
 LOCAL_TZ = pendulum.timezone("Asia/Ho_Chi_Minh")
 
-if not (ENABLE_EDUCATION or ENABLE_ECONOMY):
+default_args = {
+    "owner": "data-engineering-team",
+    "depends_on_past": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+}
+
+
+# ============================================================
+# 3. VALIDATE CONFIGURATION
+# ============================================================
+
+if not (ENABLE_JOBS or ENABLE_EDUCATION or ENABLE_ECONOMY):
     raise ValueError(
         "At least one data source must be enabled."
     )
 
 
 # ============================================================
-# 3. AIRFLOW DAG
+# 4. AIRFLOW DAG
 # ============================================================
 
 with DAG(
     dag_id="05_silver_transformation",
     description=(
-        "Education and Economy Bronze to Silver Delta Lake "
-        "with Data Quality"
+        "Bronze to Silver transformation for "
+        "Jobs, Education and Economy"
     ),
+    default_args=default_args,
     start_date=pendulum.datetime(
         2026, 9, 1, tz=LOCAL_TZ
     ),
     schedule=None,
     catchup=False,
     max_active_runs=1,
-    default_args={
-        "owner": "data-engineering-team",
-        "depends_on_past": False,
-        "retries": 1,
-        "retry_delay": timedelta(minutes=5),
-    },
     tags=[
         "silver",
+        "lakehouse",
+        "jobs",
         "education",
         "economy",
-        "labour",
-        "enterprise",
-        "spark",
-        "delta",
+        "etl",
         "minio",
         "dq",
     ],
 ) as dag:
 
     # ========================================================
-    # 4. EDUCATION SILVER
+    # 5. JOBS SILVER
+    # ========================================================
+
+    if ENABLE_JOBS:
+
+        clean_jobs = BashOperator(
+            task_id="clean_job_postings",
+            bash_command=(
+                "cd /opt/airflow && "
+                "python /opt/airflow/jobs/silver/"
+                "process_job_silver.py "
+                "--bronze-uri s3://bronze/job_posting/ "
+                "--minio "
+                "--bucket silver "
+                "--prefix jobs"
+            ),
+        )
+
+    # ========================================================
+    # 6. EDUCATION SILVER
     # ========================================================
 
     if ENABLE_EDUCATION:
@@ -81,22 +99,25 @@ with DAG(
         build_education_silver = BashOperator(
             task_id="build_education_silver",
             bash_command=(
-                "python /opt/airflow/jobs/silver/clean_admissions.py"
+                "cd /opt/airflow && "
+                "python /opt/airflow/jobs/silver/"
+                "clean_admissions.py"
             ),
         )
 
         check_education_silver = BashOperator(
             task_id="check_education_silver",
             bash_command=(
-                "python /opt/airflow/jobs/dq/check_education_silver.py"
+                "cd /opt/airflow && "
+                "python /opt/airflow/jobs/dq/"
+                "check_education_silver.py"
             ),
         )
 
-        # Education: Bronze -> Silver -> Data Quality
         build_education_silver >> check_education_silver
 
     # ========================================================
-    # 5. ECONOMY SILVER
+    # 7. ECONOMY SILVER
     # ========================================================
 
     if ENABLE_ECONOMY:
@@ -104,23 +125,29 @@ with DAG(
         build_economic_silver = BashOperator(
             task_id="build_economic_silver",
             bash_command=(
-                "python /opt/airflow/jobs/silver/clean_economic.py"
+                "cd /opt/airflow && "
+                "python /opt/airflow/jobs/silver/"
+                "clean_economic.py"
             ),
         )
 
         check_economic_silver = BashOperator(
             task_id="check_economic_silver",
             bash_command=(
-                "python /opt/airflow/jobs/dq/check_economic_silver.py"
+                "cd /opt/airflow && "
+                "python /opt/airflow/jobs/dq/"
+                "check_economic_silver.py"
             ),
         )
 
-        # Economy: Bronze -> Silver -> Data Quality
         build_economic_silver >> check_economic_silver
 
     # ========================================================
-    # 6. CROSS-SOURCE DEPENDENCIES
+    # 8. CROSS-SOURCE DEPENDENCIES
     # ========================================================
 
-    # Education and Economy are independent pipelines.
-    # No dependency between the two source groups.
+    # Jobs, Education and Economy are independent
+    # at the Silver layer.
+    #
+    # Shared dimensions and Gold facts are built
+    # in DAG 06_gold_analytics.

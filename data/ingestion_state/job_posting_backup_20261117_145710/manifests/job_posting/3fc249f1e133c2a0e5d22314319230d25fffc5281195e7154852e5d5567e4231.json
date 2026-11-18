@@ -1,0 +1,45 @@
+{
+  "format_version": 1,
+  "dataset": "job_posting",
+  "run_id": "3fc249f1e133c2a0e5d22314319230d25fffc5281195e7154852e5d5567e4231",
+  "status": "completed",
+  "created_at": "2026-11-06T15:41:39.505621+00:00",
+  "file_count": 4,
+  "files": [
+    {
+      "source_file_id": "data/jobs/timviec365_all_jobs_raw.json",
+      "source_file": "timviec365_all_jobs_raw.json",
+      "sha256": "fe9a5a2341d1266e1a01a3b3ea197e83bcda38b69c1920aee1530a37c5113f7d",
+      "size_bytes": 1071587,
+      "status": "new",
+      "archive_path": "archive/job_posting/fe/fe9a5a2341d1266e1a01a3b3ea197e83bcda38b69c1920aee1530a37c5113f7d/timviec365_all_jobs_raw.json"
+    },
+    {
+      "source_file_id": "data/jobs/timviec365_all_jobs_raw_2026-11-02_16-18-32.json",
+      "source_file": "timviec365_all_jobs_raw_2026-11-02_16-18-32.json",
+      "sha256": "e2d5811625c6753e3ab3d2c9f4eb8735bd21620d85758e6875f5b34eaff18489",
+      "size_bytes": 3506367,
+      "status": "new",
+      "archive_path": "archive/job_posting/e2/e2d5811625c6753e3ab3d2c9f4eb8735bd21620d85758e6875f5b34eaff18489/timviec365_all_jobs_raw_2026-11-02_16-18-32.json"
+    },
+    {
+      "source_file_id": "data/jobs/careerviet_all_jobs_raw.json",
+      "source_file": "careerviet_all_jobs_raw.json",
+      "sha256": "f8ad40d119b9367012483b18e890b6e06bf50e22ba6fd7e15e99c49a98b99bab",
+      "size_bytes": 1298743,
+      "status": "new",
+      "archive_path": "archive/job_posting/f8/f8ad40d119b9367012483b18e890b6e06bf50e22ba6fd7e15e99c49a98b99bab/careerviet_all_jobs_raw.json"
+    },
+    {
+      "source_file_id": "data/jobs/careerviet_all_jobs_raw_2026-11-02_16-47-12.json",
+      "source_file": "careerviet_all_jobs_raw_2026-11-02_16-47-12.json",
+      "sha256": "1dc186e571d35b0db74e64e1c83011dc27f8d7233bb04b887505cf45b02c8fb0",
+      "size_bytes": 40189721,
+      "status": "new",
+      "archive_path": "archive/job_posting/1d/1dc186e571d35b0db74e64e1c83011dc27f8d7233bb04b887505cf45b02c8fb0/careerviet_all_jobs_raw_2026-11-02_16-47-12.json"
+    }
+  ],
+  "metadata": {
+    "bronze_manifest": "ingest_date=2026-11-06/run_id=3fc249f1e133c2a0e5d22314319230d25fffc5281195e7154852e5d5567e4231/manifest.json"
+  }
+}

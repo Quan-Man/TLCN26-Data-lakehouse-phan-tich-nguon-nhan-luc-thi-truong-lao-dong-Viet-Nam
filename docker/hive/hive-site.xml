@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <property>
+    <name>javax.jdo.option.ConnectionURL</name>
+    <value>${env.HIVE_METASTORE_JDBC_URL}</value>
+  </property>
+  <property>
+    <name>javax.jdo.option.ConnectionDriverName</name>
+    <value>org.postgresql.Driver</value>
+  </property>
+  <property>
+    <name>javax.jdo.option.ConnectionUserName</name>
+    <value>${env.HIVE_DB_USER}</value>
+  </property>
+  <property>
+    <name>javax.jdo.option.ConnectionPassword</name>
+    <value>${env.HIVE_DB_PASSWORD}</value>
+  </property>
+
+  <property>
+    <name>hive.metastore.schema.verification</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>datanucleus.schema.autoCreateAll</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>hive.metastore.warehouse.dir</name>
+    <value>file:///opt/hive/data/warehouse</value>
+  </property>
+  <property>
+    <name>hive.metastore.thrift.min.worker.threads</name>
+    <value>5</value>
+  </property>
+  <property>
+    <name>hive.metastore.thrift.max.worker.threads</name>
+    <value>100</value>
+  </property>
+</configuration>

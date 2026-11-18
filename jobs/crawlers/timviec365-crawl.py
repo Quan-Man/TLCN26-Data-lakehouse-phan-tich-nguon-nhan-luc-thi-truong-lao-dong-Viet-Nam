@@ -23,6 +23,9 @@ MAX_RETRIES = 3
 
 PAGE_TIMEOUT = 30000  # 30 seconds
 
+# SỐ TRANG CHI TIẾT ĐƯỢC CRAWL ĐỒNG THỜI
+CONCURRENCY = 10
+
 # DANH SÁCH DANH MỤC CẦN CRAWL: 8
 CATEGORIES = [
     {
@@ -128,6 +131,19 @@ CATEGORIES = [
             "?page={page}"
         ),
     },
+
+    {
+        "category_name": "Quản trị kinh doanh",
+        "base_url": (
+            "https://timviec365.vn/"
+            "viec-lam-quan-tri-kinh-doanh-c20v0"
+        ),
+        "page_url_template": (
+            "https://timviec365.vn/"
+            "viec-lam-quan-tri-kinh-doanh-c20v0"
+            "?page={page}"
+        ),
+    },
 ]
 
 # TẠO URL
@@ -137,29 +153,17 @@ def build_page_url(category,page_number):
 
     return category["page_url_template"].format(page=page_number)
 
-# ============================================================
 # TEXT HELPERS
-# ============================================================
 def clean_text(text):
-    """
-    Chuẩn hóa text một dòng.
-    """
-
     if not text:
         return ""
 
     text = re.sub(r"\s+", " ", text)
-
     return text.strip()
 
 
 def clean_multiline_text(text):
-    """
-    Chuẩn hóa text nhiều dòng.
-    """
-
     if not text: return ""
-
     lines = []
 
     for line in text.splitlines():
@@ -181,7 +185,6 @@ async def get_text(locator, multiline=False):
             return clean_multiline_text(text)
 
         text = await locator.first.inner_text()
-
         return clean_text(text)
 
     except Exception:
@@ -244,7 +247,6 @@ async def get_job_cards(page):
     selector = ("div.item_vl[data-newid]")
     cards = page.locator(selector)
     count = await cards.count()
-
     return cards, count
 
 # PARSE JOB CARD
@@ -280,8 +282,8 @@ async def parse_job_card(card, category):
         # EXPERIENCE
         experience = await get_text(card.locator(".item_catenew_exp"))
  
-        # DEADLINE
-        deadline = await get_text(card.locator(".job_time"))
+        # expiration_date
+        expiration_date = await get_text(card.locator(".job_time"))
 
         return {
             "job_id": job_id,
@@ -290,7 +292,7 @@ async def parse_job_card(card, category):
             "salary": salary,
             "location": location,
             "experience": experience,
-            "deadline": deadline,
+            "expiration_date": expiration_date,
             "job_url": job_url,
             "category_name": category["category_name"],
         }
@@ -332,9 +334,7 @@ async def get_detail_section(page, section_title):
                 continue
 
             content = await get_text(
-                section.locator(
-                    ".boxMainInfoSpecific"
-                ),
+                section.locator(".boxMainInfoSpecific"),
                 multiline=True
             )
 
@@ -388,10 +388,18 @@ async def crawl_job_detail(context, job_basic, crawled_at):
                 timeout=PAGE_TIMEOUT
             )
 
-            await page.wait_for_timeout(1000) # 1 second
+            try:
+                await page.locator("h1.titleNew"
+                ).first.wait_for(
+                    state="visible",
+                    timeout=15000
+                )
 
+            except PlaywrightTimeoutError:
+                print(f"[ERROR] Không thấy tiêu đề job {attempt}/{MAX_RETRIES}")
+                continue
+            
             # CHECK DETAIL
-
             if (await page.locator("h1.titleNew").count() == 0):
                 print(f"[ERROR] Không thấy detail {attempt}/{MAX_RETRIES}")
                 continue
@@ -412,7 +420,6 @@ async def crawl_job_detail(context, job_basic, crawled_at):
 
     try:
         # TITLE
-
         job_title = await get_text(page.locator("h1.titleNew"))
 
         if not job_title:
@@ -430,11 +437,11 @@ async def crawl_job_detail(context, job_basic, crawled_at):
         if not location:
             location = job_basic["location"]
 
-        # DEADLINE
-        deadline = await get_detail_value(page, "Hạn nộp")
+        # expiration_date
+        expiration_date = await get_detail_value(page, "Hạn nộp")
 
-        if not deadline:
-            deadline = job_basic["deadline"]
+        if not expiration_date:
+            expiration_date = job_basic["expiration_date"]
 
         # EXPERIENCE
         experience = await get_detail_value(page, "Kinh nghiệm")
@@ -456,65 +463,54 @@ async def crawl_job_detail(context, job_basic, crawled_at):
 
         # SUMMARY
         job = {
-            "category": job_basic["category_name"],
-
+            "category_name": job_basic["category_name"],
             "job_id":job_basic["job_id"],
-
             "job_title": job_title,
-
             "company": job_basic["company"],
-
             "salary": salary,
-
             "location": location,
-
-            "deadline": deadline,
-
-            "posted_at": job_information.get("posted_at", ""),
-
+            "expiration_date": expiration_date,
+            "posted_date": job_information.get("posted_at", ""),
             "job_url": job_url,
-
             "experience": experience,
-
             "education": job_information.get("education", ""),
-
             "skills": skills,
-
             "description": description,
-
             "requirements": requirements,
-
             "source_name": "timviec365",
-
             "crawled_at": crawled_at,
         }
 
-        print(f"SUCCESS: {job_title}")
         return job
 
     except Exception as e:
-        print(
-            f"Detail error "
-            f"{job_basic['job_id']}: {e}"
-        )
-
+        print(f"Detail error {job_basic['job_id']}: {e}")
         return None
 
     finally:
         await page.close()
 
+async def crawl_job_detail_task(context, job_basic, crawled_at, semaphore, index, total_jobs):
+    async with semaphore:
+        print(
+            f"[DETAIL {index}/{total_jobs}] "
+            f"{job_basic['job_title']}"
+        )
+
+        try:
+            return await crawl_job_detail(
+                context=context,
+                job_basic=job_basic,
+                crawled_at=crawled_at
+            )
+        
+        except Exception as e:
+            print(f"[DETAIL ERROR] {job_basic['job_id']}: {e}")
+            return None
+
 # CRAWL ONE CATEGORY PAGE
 async def crawl_category_page(page, category, page_number):
     page_url = build_page_url(category, page_number)
-
-    print()
-    print("=" * 80)
-
-    print(
-        f"URL: "
-        f"{page_url}"
-    )
-
     success = False
 
     for attempt in range(1, MAX_RETRIES + 1):
@@ -524,8 +520,6 @@ async def crawl_category_page(page, category, page_number):
                 wait_until="domcontentloaded",
                 timeout=PAGE_TIMEOUT
             )
-
-            await page.wait_for_timeout(1500) # 1.5 second
 
             # CHỜ JOB CARD
             await page.locator(
@@ -539,42 +533,12 @@ async def crawl_category_page(page, category, page_number):
             break
 
         except PlaywrightTimeoutError:
-            print(
-                f"Timeout listing "
-                f"{attempt}/{MAX_RETRIES}"
-            )
+            print(f"Timeout listing {attempt}/{MAX_RETRIES}")
 
         except Exception as e:
-            print(
-                f"Listing error "
-                f"{attempt}/{MAX_RETRIES}: "
-                f"{e}"
-            )
+            print(f"Listing error {attempt}/{MAX_RETRIES}: {e}")
 
-    # FAILED
     if not success:
-        try:
-            html = await page.content()
-
-            debug_file = (
-                f"timviec365_debug_"
-                f"{page_number}.html"
-            )
-
-            with open(
-                debug_file,
-                "w",
-                encoding="utf-8"
-            ) as f:
-
-                f.write(html)
-
-            print(f"Không lấy được job")
-            print(f"Debug: {debug_file}")
-
-        except Exception:
-            pass
-
         return 0, 0, []
 
     # GET CARDS
@@ -590,13 +554,12 @@ async def crawl_category_page(page, category, page_number):
 
     for i in range(card_count):
         card = cards.nth(i)
+        
         job = await parse_job_card(card, category)
-
         if not job:
             continue
 
         job_id = job["job_id"]
-
         if not job_id:
             continue
 
@@ -621,11 +584,7 @@ async def main():
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
             locale="vi-VN",
-
-            viewport={
-                "width": 1920,
-                "height": 1080
-            },
+            viewport={"width": 1920, "height": 1080},
 
             user_agent=(
                 "Mozilla/5.0 "
@@ -647,12 +606,9 @@ async def main():
         # CRAWL CATEGORY
         for category in CATEGORIES:
             category_name = (category["category_name"])
-
-            print()
             print(category_name)
 
             first_page_url = build_page_url(category, 1)
-
             success = False
 
             for attempt in range(1, MAX_RETRIES + 1):
@@ -662,8 +618,6 @@ async def main():
                         wait_until="domcontentloaded",
                         timeout=PAGE_TIMEOUT
                     )
-
-                    await listing_page.wait_for_timeout(1500)
 
                     await listing_page.locator("div.item_vl[data-newid]"
                     ).first.wait_for(
@@ -675,27 +629,15 @@ async def main():
                     break
 
                 except PlaywrightTimeoutError:
-                    print(
-                        f"Timeout page 1 "
-                        f"{attempt}/{MAX_RETRIES}"
-                    )
+                    print(f"Timeout page 1 {attempt}/{MAX_RETRIES}")
 
                 except Exception as e:
-                    print(
-                        f"Error page 1 "
-                        f"{attempt}/{MAX_RETRIES}: "
-                        f"{e}"
-                    )
+                    print(f"Error page 1 {attempt}/{MAX_RETRIES}: {e}")
 
             if not success:
-                print(
-                    f"[ERROR] Không mở được category "
-                    f"'{category_name}'"
-                )
+                print(f"[ERROR] Không mở được category '{category_name}'")
 
-                category_statistics[
-                    category_name
-                ] = {
+                category_statistics[category_name] = {
                     "last_page": 0,
                     "pages_crawled": 0,
                     "jobs": 0
@@ -705,18 +647,7 @@ async def main():
 
             last_page = await get_last_page(listing_page)
 
-            print()
-            print(
-                f"Category: "
-                f"{category_name}"
-            )
-
-            print(
-                f"Last page: "
-                f"{last_page}"
-            )
-
-            # 3. CRAWL PAGE 1 → LAST PAGE
+            # CRAWL PAGE 1 to LAST PAGE
             category_jobs = 0
             pages_crawled = 0
 
@@ -733,72 +664,58 @@ async def main():
 
                 # PAGE EMPTY
                 if job_count == 0:
-                    print(
-                        f"[ERROR] Page "
-                        f"{page_number} "
-                        f"không có job."
-                    )
+                    print(f"[ERROR] Page {page_number} không có job.")
                     continue
 
                 pages_crawled += 1
                 new_jobs = 0
 
                 for job in page_jobs:
-
                     job_id = job["job_id"]
 
                     if (job_id in global_seen_ids):
                         continue
 
                     global_seen_ids.add(job_id)
-
                     all_basic_jobs.append(job)
-
                     category_jobs += 1
                     new_jobs += 1
 
                 print(f"Page {page_number}: {new_jobs} jobs mới")
 
-        print(
-            "-" * 100
-        )
-
-        print(
-            f"Tổng job unique: "
-            f"{len(all_basic_jobs)}"
-        )
-
         # CRAWL DETAIL
-        print()
-        print(
-            "BẮT ĐẦU CRAWL DETAIL"
-        )
-
         results = []
 
-        total_jobs = len(
-            all_basic_jobs
-        )
+        total_jobs = len(all_basic_jobs)
+        semaphore = asyncio.Semaphore(CONCURRENCY)
 
-        for index, job_basic in enumerate(
-            all_basic_jobs,
-            start=1
-        ):
-
-            print()
-            print(
-                f"DETAIL "
-                f"[{index}/{total_jobs}]"
-            )
-
-            result = await crawl_job_detail(
+        tasks = [
+            crawl_job_detail_task(
                 context=context,
                 job_basic=job_basic,
-                crawled_at=crawled_at
+                crawled_at=crawled_at,
+                semaphore=semaphore,
+                index=index,
+                total_jobs=total_jobs
             )
+            
+            for index, job_basic in enumerate(
+                all_basic_jobs,
+                start=1
+            )
+        ]
+
+        task_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for result in task_results:
+            if isinstance(result, Exception):
+                print(f"[TASK ERROR] {result}")
+                continue
 
             if result:
                 results.append(result)
+
+        print(f"Crawl detail thành công: {len(results)}/{total_jobs}")
 
         # SAVE JSON
         with open(
@@ -806,7 +723,6 @@ async def main():
             "w",
             encoding="utf-8"
         ) as f:
-
             json.dump(
                 results,
                 f,
@@ -815,32 +731,7 @@ async def main():
             )
 
         # FINAL
-        print()
-        print("#" * 100)
-
-        print(
-            "CRAWL HOÀN THÀNH"
-        )
-
-        print(
-            "#" * 100
-        )
-
-        print(
-            f"Danh mục: "
-            f"{len(CATEGORIES)}"
-        )
-
-        print(
-            f"Job unique: "
-            f"{len(all_basic_jobs)}"
-        )
-
-        print(
-            f"Detail thành công: "
-            f"{len(results)}"
-        )
-
+        print(f"{len(CATEGORIES)} danh mục")
         print(f"Output: {OUTPUT_FILE}")
 
         await browser.close()

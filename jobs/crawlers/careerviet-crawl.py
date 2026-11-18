@@ -168,7 +168,6 @@ async def get_text(locator):
             return None
 
         text = await locator.first.inner_text()
-
         return text.strip() if text else None
 
     except Exception:
@@ -522,7 +521,6 @@ async def crawl_category(listing_page, context, semaphore, category, crawled_at,
 
         for i in range(count):
             card = jobs.nth(i)
-
             job_link = card.locator("h2 a.job_link").first
 
             if await job_link.count() == 0:
@@ -571,7 +569,7 @@ async def crawl_category(listing_page, context, semaphore, category, crawled_at,
             print(
                 f"[{category_name}] "
                 f"Page {page_number} "
-                f"-> {result['job_title']}"
+                f": {result['job_title']}"
             )
 
         print(f"Page {page_number} completed.")

@@ -1,0 +1,35 @@
+{
+  "format_version": 1,
+  "job_name": "bronze.job_posting",
+  "task_id": "load_job_postings",
+  "run_id": "manual__2026-11-06T15:09:56+00:00",
+  "attempt": 1,
+  "attempt_id": "542f7b0dae024c31ba6a251204b0e592",
+  "status": "failed_task",
+  "started_at": "2026-11-06T15:10:36.404996Z",
+  "ended_at": "2026-11-06T15:10:36.429805Z",
+  "duration_seconds": 0.024802,
+  "input_checksum": null,
+  "inputs": [],
+  "counts": {
+    "read": 0,
+    "valid": 0,
+    "rejected": 0,
+    "duplicate": 0
+  },
+  "code_version": "51e5cef0ed1b16d18582cf6d5b0f0d5a961814fc34198509d29acdcfacc10fc1",
+  "code_files": {
+    "jobs/bronze/ingest_job_posting.py": "2b2c86f8d4960b9b0ed00db8d62ffb92260ebf600039f604b0a9a7315d715b69",
+    "jobs/common/audit.py": "7e9cece3b2526c955dcb68023780593768068085b75f5f33c3b6e751a1b5cd10",
+    "jobs/common/settings.py": "f2cda051462618d995b277e807fb81544026d100d39c62632e8867130250b73b",
+    "jobs/common/storage.py": "ce3412d724797351816f3ed0b05dcd7a237806c592011d3e6200055de0ce29f8"
+  },
+  "mapping_version": null,
+  "mapping_files": {},
+  "outputs": {},
+  "failure": {
+    "category": "task",
+    "exception_type": "FileNotFoundError",
+    "message": "Invalid project/container paths; check PROJECT_ROOT, CONFIG_ROOT, DATA_ROOT and Docker mounts: config directory: /opt/airflow/configs"
+  }
+}

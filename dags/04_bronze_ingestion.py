@@ -1,21 +1,13 @@
 
-"""Bronze ingestion orchestration for Education and Economy.
-
-Education:
-    - University admissions
-    - Admission announcement dates
-
-Economy:
-    - 18 source CSV files to 18 Bronze Delta tables
-
-Enable or disable each source using configuration flags.
-"""
+"""Raw to Bronze ingestion for Jobs, Education and Economy."""
 
 import sys
 from datetime import timedelta
 
 import pendulum
+
 from airflow import DAG
+from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 
 
@@ -23,8 +15,9 @@ from airflow.operators.python import PythonOperator
 # 1. ENABLE / DISABLE DATA SOURCES
 # ============================================================
 
+ENABLE_JOBS = True
 ENABLE_EDUCATION = True
-ENABLE_ECONOMY = False
+ENABLE_ECONOMY = True
 
 
 # ============================================================
@@ -37,6 +30,14 @@ JOBS_BRONZE_DIR = "/opt/airflow/jobs/bronze"
 
 if JOBS_BRONZE_DIR not in sys.path:
     sys.path.insert(0, JOBS_BRONZE_DIR)
+
+
+default_args = {
+    "owner": "data-engineering-team",
+    "depends_on_past": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+}
 
 
 # ============================================================
@@ -57,7 +58,7 @@ if ENABLE_ECONOMY:
 # 4. VALIDATE CONFIGURATION
 # ============================================================
 
-if not (ENABLE_EDUCATION or ENABLE_ECONOMY):
+if not (ENABLE_JOBS or ENABLE_EDUCATION or ENABLE_ECONOMY):
     raise ValueError(
         "At least one data source must be enabled."
     )
@@ -69,31 +70,44 @@ if not (ENABLE_EDUCATION or ENABLE_ECONOMY):
 
 with DAG(
     dag_id="04_bronze_ingestion",
-    description="Raw to Bronze Delta Lake for Education and Economy",
+    description=(
+        "Raw to Bronze Lakehouse for "
+        "Jobs, Education and Economy"
+    ),
+    default_args=default_args,
     start_date=pendulum.datetime(
         2026, 9, 1, tz=LOCAL_TZ
     ),
     schedule=None,
     catchup=False,
     max_active_runs=1,
-    default_args={
-        "owner": "data-engineering-team",
-        "depends_on_past": False,
-        "retries": 2,
-        "retry_delay": timedelta(minutes=5),
-    },
     tags=[
         "bronze",
+        "lakehouse",
+        "jobs",
         "education",
         "economy",
-        "spark",
-        "delta",
         "minio",
     ],
 ) as dag:
 
     # ========================================================
-    # 6. EDUCATION BRONZE
+    # 6. JOBS BRONZE
+    # ========================================================
+
+    if ENABLE_JOBS:
+
+        load_job_postings = BashOperator(
+            task_id="load_job_postings",
+            bash_command=(
+                "cd /opt/airflow && "
+                "python /opt/airflow/jobs/bronze/"
+                "ingest_job_posting.py"
+            ),
+        )
+
+    # ========================================================
+    # 7. EDUCATION BRONZE
     # ========================================================
 
     if ENABLE_EDUCATION:
@@ -109,7 +123,7 @@ with DAG(
         )
 
     # ========================================================
-    # 7. ECONOMY BRONZE
+    # 8. ECONOMY BRONZE
     # ========================================================
 
     if ENABLE_ECONOMY:
@@ -124,8 +138,9 @@ with DAG(
         )
 
     # ========================================================
-    # 8. TASK DEPENDENCIES
+    # 9. TASK DEPENDENCIES
     # ========================================================
 
-    # Independent outputs:
-    # No dependencies required between Education and Economy.
+    # All Bronze tasks are independent.
+    # Airflow schedules enabled tasks according to
+    # the configured executor and parallelism.

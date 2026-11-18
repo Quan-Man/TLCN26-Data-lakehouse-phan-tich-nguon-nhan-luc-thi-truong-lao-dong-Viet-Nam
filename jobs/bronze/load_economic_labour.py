@@ -1,4 +1,4 @@
-"""Official 18-table Bronze Delta ingestion; safe first write, guarded overwrite."""
+"""Official 18-table Bronze Delta ingestion; idempotent, insert-only."""
 import csv
 import hashlib
 import json
@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 from pyspark.sql import SparkSession, types as T
+from delta.tables import DeltaTable
 
 RAW_DIR = Path('/opt/airflow/data/economy')
 BRONZE_ROOT = 's3a://bronze/economic'
@@ -97,28 +98,11 @@ def load_economic_labour(input_dir=RAW_DIR, output=BRONZE_ROOT, batch_id=None,
         raise ValueError(f'Raw row count changed: expected {EXPECTED_TOTAL_RAW_ROWS}, got {total_raw_rows}. Review input CSVs before writing.')
     spark=get_spark()
     try:
-        # Do not overwrite any existing official table unless both explicit gates are set.
+        if allow_production_overwrite:
+            raise ValueError('Overwrite is disabled in this insert-only loader.')
         jconf = spark._jsc.hadoopConfiguration()
-        jfs = spark._jvm.org.apache.hadoop.fs.FileSystem
         jpath = spark._jvm.org.apache.hadoop.fs.Path
-        existing = []
-        for name in TABLES.values():
-            dest = f'{output}/{name}'
-            path_obj = jpath(dest)
-            fs = path_obj.getFileSystem(jconf)
-            if fs.exists(path_obj):
-                existing.append(dest)
-        overwrite_approved = (
-            allow_production_overwrite is True
-            and os.getenv('ECONOMIC_PRODUCTION_OVERWRITE') == 'YES_I_HAVE_BACKUP'
-        )
-        if existing and not overwrite_approved:
-            raise RuntimeError(
-                'Official Bronze tables already exist. Refusing overwrite: '
-                + ', '.join(existing)
-                + '. Back up first; then set allow_production_overwrite=True '
-                + 'and ECONOMIC_PRODUCTION_OVERWRITE=YES_I_HAVE_BACKUP.'
-            )
+        plans = []
         totals={}
         for n,path,cols,rows in prepared:
             schema=T.StructType([T.StructField(c,T.StringType(),True) for c in cols]+[
@@ -131,12 +115,48 @@ def load_economic_labour(input_dir=RAW_DIR, output=BRONZE_ROOT, batch_id=None,
                 T.StructField('loaded_at',T.TimestampType(),False)])
             dest=f'{output}/{TABLES[n]}'
             df=spark.createDataFrame(rows,schema)
-            mode = 'overwrite' if overwrite_approved else 'errorifexists'
-            df.write.format('delta').mode(mode).option('overwriteSchema','true').save(dest)
-            actual=spark.read.format('delta').load(dest).count()
-            if actual!=len(rows): raise RuntimeError(f'Count mismatch {path.name}: {actual}/{len(rows)}')
-            totals[path.name]=actual
-            print(f'{path.name}: {actual} raw rows -> {dest}')
+            path_obj = jpath(dest)
+            exists = path_obj.getFileSystem(jconf).exists(path_obj)
+            if exists:
+                if not DeltaTable.isDeltaTable(spark, dest):
+                    raise RuntimeError(f'Existing path is not Delta: {dest}')
+                old = spark.read.format('delta').load(dest)
+                if dict(old.dtypes) != dict(df.dtypes):
+                    raise RuntimeError(f'Schema mismatch: {dest}')
+                keys = ['raw_id', 'source_file', 'source_row_number', 'source_record_hash', 'data_group']
+                prior = old.select(*keys).collect()
+                old_ids = {r.raw_id for r in prior}
+                if None in old_ids or len(old_ids) != len(prior):
+                    raise RuntimeError(f'Invalid existing raw IDs: {dest}')
+                incoming = {r[-7]: (r[-6], r[-5], r[-4], r[-3]) for r in rows}
+                old_positions = {(r.source_file, r.source_row_number): r.raw_id for r in prior}
+                if len(old_positions) != len(prior):
+                    raise RuntimeError(f'Duplicate existing source positions: {dest}')
+                for r in prior:
+                    if incoming.get(r.raw_id) != (r.source_file, r.source_row_number, r.source_record_hash, r.data_group):
+                        raise RuntimeError(f'Existing source row changed or disappeared: {dest}. Review before ingestion.')
+                new_count = len(set(incoming) - old_ids)
+            else:
+                new_count = len(rows)
+            plans.append((path, dest, df, exists, new_count, len(rows)))
+
+        # Validate all 18 sources before writing any table.
+        for path, dest, df, exists, new_count, expected in plans:
+            if not exists:
+                df.write.format('delta').mode('errorifexists').save(dest)
+                action = 'CREATED'
+            elif new_count:
+                (DeltaTable.forPath(spark, dest).alias('t')
+                    .merge(df.alias('s'), 't.raw_id = s.raw_id')
+                    .whenNotMatchedInsertAll().execute())
+                action = 'INSERTED'
+            else:
+                action = 'SKIPPED - unchanged'
+            actual = spark.read.format('delta').load(dest).count()
+            if actual != expected:
+                raise RuntimeError(f'Count mismatch {path.name}: {actual}/{expected}')
+            totals[path.name] = actual
+            print(f'{action}: {path.name}: {actual} raw rows, {new_count} new -> {dest}')
         print('TOTAL RAW ROWS:',sum(totals.values()))
         return totals
     finally: spark.stop()
