@@ -4,9 +4,11 @@ Run: cd /opt/airflow && python -m jobs.gold.build_education_gold
 import os
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from jobs.gold.build_shared_dimensions import attach_date_key, location_normalize
 
 SILVER = os.getenv('EDUCATION_SILVER_PREFIX', 's3a://silver/education').rstrip('/')
 GOLD = os.getenv('EDUCATION_GOLD_PREFIX', 's3a://gold/education').rstrip('/')
+SHARED_DATE = os.getenv('GOLD_DATE_PATH', 's3a://gold/shared/dim_date')
 SHARED_LOCATION = os.getenv('GOLD_LOCATION_PATH', 's3a://gold/shared/dim_location')
 
 
@@ -46,11 +48,11 @@ GOLD_TABLES = {
         "dim_university": f"{GOLD}/dim_university",
         "dim_major": f"{GOLD}/dim_major",
         "dim_program": f"{GOLD}/dim_program",
-        "dim_date": f"{GOLD}/dim_date",
         "fact_admission": f"{GOLD}/fact_admission",
     },
     "shared": {
         "dim_location": SHARED_LOCATION,
+        "dim_date": SHARED_DATE,
     },
 }
 
@@ -107,54 +109,43 @@ def hash_key(col):
 
 
 def location_dimension(spark, universities):
-    """Never overwrite an existing shared dimension. Add only unseen exact names.
-    Administrative codes/regions/effective dates remain unknown until mapped.
-    """
-    names = (universities.select(F.trim('location_name').alias('location_name'))
-             .where(F.col('location_name').isNotNull() & (F.col('location_name') != ''))
-             .distinct())
-    candidates = (names.withColumn('location_id', hash_key('location_name'))
-                  .withColumn('location_key', F.col('location_id'))
-                  .withColumn('location_code', F.lit(None).cast('string'))
-                  .withColumn('location_level', F.lit('PROVINCE'))
-                  .withColumn('province_name', F.col('location_name'))
-                  .withColumn('economic_region', F.lit(None).cast('string'))
-                  .withColumn('valid_from', F.lit(None).cast('date'))
-                  .withColumn('valid_to', F.lit(None).cast('date'))
-                  .withColumn('is_current', F.lit(None).cast('boolean'))
-                  .select('location_key', 'location_id', 'location_code', 'location_name',
-                          'location_level', 'province_name', 'economic_region',
-                          'valid_from', 'valid_to', 'is_current'))
-    # A candidate dataset is safe to refresh and can be reviewed before merging
-    # with the shared, historically-versioned dimension.
-    write(candidates, f'{GOLD}/dim_location_candidates')
-    # Hadoop FS existence check avoids treating permission/network errors as a missing table.
-    jvm = spark._jvm
-    hpath = jvm.org.apache.hadoop.fs.Path(SHARED_LOCATION)
-    fs = hpath.getFileSystem(spark._jsc.hadoopConfiguration())
-    if fs.exists(hpath):
-        shared = spark.read.format('delta').load(SHARED_LOCATION)
-        print('[GOLD] Existing shared dim_location detected; will NOT modify it')
-    else:
-        write(candidates, SHARED_LOCATION)
-        shared = spark.read.format('delta').load(SHARED_LOCATION)
-        print('[GOLD] Initialized shared dim_location from Education candidates')
-    required = {'location_key', 'location_name'}
+    """Read shared province keys; never create or modify shared dimensions."""
+    shared = spark.read.format('delta').load(SHARED_LOCATION)
+    required = {'location_key', 'location_id', 'province_name'}
     if not required.issubset(shared.columns):
-        raise ValueError('Shared dim_location lacks location_key/location_name')
-    # Only map a location when there is exactly one matching version; do not
-    # guess which SCD2 record is historically correct.
-    matched = (shared.select('location_name', 'location_key')
-               .where(F.col('location_name').isNotNull())
-               .dropDuplicates(['location_name', 'location_key']))
-    ambiguous = matched.groupBy('location_name').count().filter('count > 1')
-    if ambiguous.join(names, 'location_name', 'inner').limit(1).count():
-        raise ValueError('Shared dim_location has multiple versions for an Education name; supply explicit year-to-location mapping')
-    missing = names.join(matched, 'location_name', 'left_anti')
-    if missing.limit(1).count():
-        missing.show(truncate=False)
-        raise ValueError('Unmapped Education location(s); review dim_location_candidates and update shared dimension')
-    return matched
+        raise ValueError('Shared dim_location schema mismatch; run shared Gold first')
+    assert_unique(shared, 'location_key', 'shared.dim_location')
+    assert_unique(shared, 'location_id', 'shared.dim_location')
+    lookup, keys = {}, {}
+    def add(value, identity):
+        if value:
+            lookup.setdefault(location_normalize(value), set()).add(identity)
+    for row in shared.select(*sorted(required)).collect():
+        keys[row.location_id] = row.location_key
+        if row.location_key != '0':
+            add(row.province_name, row.location_id)
+            add(row.location_id, row.location_id)
+    root = os.getenv('SHARED_MAPPING_ROOT', '/opt/airflow/configs/mappings').rstrip('/')
+    for row in spark.read.option('header', True).csv(f'{root}/location_aliases.csv').collect():
+        r = row.asDict()
+        if str(r.get('requires_context', '')).lower() in ('true', '1', 'yes'):
+            continue
+        if r['location_id'] in keys and keys[r['location_id']] != '0':
+            add(r['alias'], r['location_id'])
+    if 'LOC_VN63_79' in keys:
+        add('Thành phố Hồ Chí Minh', 'LOC_VN63_79')
+        add('TP. Hồ Chí Minh', 'LOC_VN63_79')
+    rows, missing = [], []
+    for row in universities.select('location_name').distinct().collect():
+        name = row.location_name
+        matches = lookup.get(location_normalize(name), set())
+        if len(matches) != 1:
+            missing.append((name, sorted(matches)))
+        else:
+            rows.append((name, keys[next(iter(matches))]))
+    if missing:
+        raise ValueError(f'Unmapped/ambiguous Education locations: {missing[:50]}')
+    return spark.createDataFrame(rows, 'location_name string, location_key string')
 
 
 def build(spark):
@@ -196,29 +187,16 @@ def build(spark):
                 dim_p.join(dimension.select(fk), fk, 'left_anti').limit(1).count():
             raise ValueError(f'dim_program: invalid {fk}')
 
-    # All valid calendar days between minimum and maximum announcement date.
-    # This is a reusable calendar dimension; date_key is YYYYMMDD (integer).
-    valid_dates = announcements.where(F.col('announcement_date').isNotNull())
-    bounds = valid_dates.agg(F.min('announcement_date').alias('start'),
-                             F.max('announcement_date').alias('end')).first()
-    if bounds['start'] is None:
-        raise ValueError('No valid announcement dates')
-    dim_d = (spark.sql(f"SELECT explode(sequence(to_date('{bounds['start']}'), to_date('{bounds['end']}'), interval 1 day)) AS full_date")
-             .withColumn('date_key', F.date_format('full_date', 'yyyyMMdd').cast('int'))
-             .withColumn('day_number', F.dayofmonth('full_date'))
-             .withColumn('day_name', F.date_format('full_date', 'EEEE'))
-             .withColumn('week_number', F.weekofyear('full_date'))
-             .withColumn('month_number', F.month('full_date'))
-             .withColumn('month_name', F.date_format('full_date', 'MMMM'))
-             .withColumn('quarter_number', F.quarter('full_date'))
-             .withColumn('year_number', F.year('full_date'))
-             .withColumn('year_month', F.date_format('full_date', 'yyyy-MM'))
-             .withColumn('year_quarter', F.concat(F.year('full_date'), F.lit('-Q'), F.quarter('full_date')))
-             .withColumn('academic_year', F.year('full_date'))
-             .withColumn('is_weekend', F.dayofweek('full_date').isin(1, 7))
-             .select('date_key', 'full_date', 'day_number', 'day_name', 'week_number',
-                     'month_number', 'month_name', 'quarter_number', 'year_number',
-                     'year_month', 'year_quarter', 'academic_year', 'is_weekend'))
+    # Shared calendar is the single source of date keys.
+    dim_d = spark.read.format('delta').load(SHARED_DATE)
+    assert_unique(dim_d, 'date_key', 'shared.dim_date')
+    assert_unique(dim_d, 'full_date', 'shared.dim_date')
+    if dim_d.filter((F.col('date_key') == 0) &
+                    (F.col('full_date') == F.lit('1900-01-01').cast('date'))).count() != 1:
+        raise ValueError('Shared dim_date missing Unknown date_key=0')
+    if announcements.filter(F.col('announcement_date').isNotNull() &
+                            F.col('announcement_date').cast('date').isNull()).limit(1).count():
+        raise ValueError('Invalid announcement_date in Silver')
 
     # Prevent accidental row multiplication: university/year -> at most one date.
     ann = announcements.select('university_id', 'admission_year', 'announcement_date')
@@ -233,9 +211,8 @@ def build(spark):
          .join(dim_u.select('university_id', 'university_key', 'location_key'), 'university_id', 'left')
          .withColumn('admission_fact_key', hash_key('admission_id'))
          .withColumn('program_key', hash_key('program_id'))
-         .withColumn('major_key', hash_key('major_id'))
-         .withColumn('date_key', F.when(F.col('announcement_date').isNotNull(),
-                                        F.date_format('announcement_date', 'yyyyMMdd').cast('int'))))
+         .withColumn('major_key', hash_key('major_id')))
+    f = attach_date_key(f, dim_d, 'announcement_date', 'date_key')
     for col in ('university_key', 'major_key', 'program_key', 'location_key'):
         require_complete_join(f, col, 'fact_admission')
     if f.count() != admissions.count():
@@ -288,8 +265,7 @@ def build(spark):
     # Validate before publishing outputs; write fact last.
     for name, df, key in [('dim_university', dim_u, 'university_key'),
                           ('dim_major', dim_m, 'major_key'),
-                          ('dim_program', dim_p, 'program_key'),
-                          ('dim_date', dim_d, 'date_key')]:
+                          ('dim_program', dim_p, 'program_key')]:
         assert_unique(df, key, name)
         write(df, f'{GOLD}/{name}')
     write(f, f'{GOLD}/fact_admission')

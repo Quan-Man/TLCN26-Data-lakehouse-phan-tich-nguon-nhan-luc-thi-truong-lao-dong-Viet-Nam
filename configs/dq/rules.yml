@@ -936,8 +936,8 @@ profiles:
         job_id: string
         skill_key: string
         skill_id: string
-        is_required: boolean
-        confidence_score: numeric
+        # is_required: boolean
+        # confidence_score: numeric
       foreign_keys:
       - {columns: [job_fact_key, job_id], references: fact_job_posting, reference_columns: [job_fact_key, job_id], nullable: false}
       - {columns: [skill_key, skill_id], references: dim_skill, reference_columns: [skill_key, skill_id], nullable: false}

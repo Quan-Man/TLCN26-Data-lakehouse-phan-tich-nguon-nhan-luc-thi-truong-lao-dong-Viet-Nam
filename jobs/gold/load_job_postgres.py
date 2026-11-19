@@ -22,14 +22,20 @@ GOLD_ROOT = os.getenv('JOBS_GOLD_ROOT', 's3a://gold/jobs')
 DEFAULT_SILVER_ROOT = 's3a://silver/jobs'
 DIMENSIONS = {
     'dim_date': ('date_key', ['date_key', 'full_date', 'day_of_month', 'day_of_week', 'day_name', 'week_of_year', 'month_number', 'month_name', 'quarter_number', 'year_number', 'is_weekend', 'is_holiday']),
-    'dim_location': ('location_id', ['location_id', 'location_name', 'location_type', 'province_name', 'region_name', 'country_code', 'valid_from', 'valid_to', 'is_current']),
+    'dim_location': ('location_id', ['location_id', 'location_name', 'location_type', 'province_name', 'region_name', 'valid_from', 'valid_to', 'is_current']),
     'dim_company': ('company_id', ['company_id', 'company_name', 'company_name_normalized', 'company_size', 'industry_id', 'is_active', 'source_name']),
     #'dim_occupation': ('occupation_id', ['occupation_id', 'occupation_name', 'occupation_group', 'occupation_family', 'is_active']),
     #'dim_industry': ('industry_id', ['industry_id', 'industry_name', 'parent_industry_id', 'industry_level', 'is_active']),
     'dim_skill': ('skill_id', ['skill_id', 'skill_name', 'skill_category', 'skill_type', 'is_active']),
 }
-FACT_COLUMNS = ['job_id', 'date_key', 'company_key', 'occupation_key', 'industry_key', 'location_key', 'source_name', 'job_title', 'job_type', 'experience_level', 'education_level', 'salary_min', 'salary_max', 'salary_currency', 'salary_period', 'is_salary_disclosed', 'posting_count', 'is_active', 'crawled_at', 'valid_through']
-SKILL_COLUMNS = ['job_posting_key', 'skill_key', 'evidence_field', 'matched_text', 'raw_skill_text', 'is_required', 'required_level', 'years_required', 'extraction_method', 'confidence_score', 'validation_status', 'extractor_version']
+FACT_COLUMNS = ['job_id', 'date_key', 'company_key', 'location_key', 'source_name', 'job_title',
+    'job_type', 'experience_level', 'education_level', 'salary_min', 'salary_max',
+    'salary_currency', 'salary_period', 'is_salary_disclosed', 'posting_count',
+    # 'occupation_key', 'industry_key', 'is_active',
+    'crawled_at', 'valid_through']
+SKILL_COLUMNS = ['job_posting_key', 'skill_key', 'evidence_field', 'matched_text', 'raw_skill_text',
+    # 'is_required', 'required_level', 'years_required', 'confidence_score',
+    'extraction_method', 'validation_status', 'extractor_version']
 # Tạm tắt aggregate đến khi cần nạp các bảng tổng hợp.
 # AGGREGATES = {
 #     'agg_labor_demand': ['year_month', 'location_id', 'industry_id', 'posting_count', 'hiring_company_count', 'average_salary_min'],

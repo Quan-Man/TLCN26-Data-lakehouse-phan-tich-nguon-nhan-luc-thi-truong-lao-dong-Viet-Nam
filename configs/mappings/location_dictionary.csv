@@ -1,5 +1,5 @@
 ﻿location_id,province_code,location_name,location_name_normalized,location_type,economic_region
-LOC_VN63_01,01,Hà Nội,ha noi,capital,Đồng bằng sông Hồng
+LOC_VN63_01,01,Hà Nội,ha noi,municipality,Đồng bằng sông Hồng
 LOC_VN63_02,02,Hà Giang,ha giang,province,Trung du và miền núi phía Bắc
 LOC_VN63_04,04,Cao Bằng,cao bang,province,Trung du và miền núi phía Bắc
 LOC_VN63_06,06,Bắc Kạn,bac kan,province,Trung du và miền núi phía Bắc
@@ -18,7 +18,7 @@ LOC_VN63_25,25,Phú Thọ,phu tho,province,Trung du và miền núi phía Bắc
 LOC_VN63_26,26,Vĩnh Phúc,vinh phuc,province,Đồng bằng sông Hồng
 LOC_VN63_27,27,Bắc Ninh,bac ninh,province,Đồng bằng sông Hồng
 LOC_VN63_30,30,Hải Dương,hai duong,province,Đồng bằng sông Hồng
-LOC_VN63_31,31,Hải Phòng,hai phong,city,Đồng bằng sông Hồng
+LOC_VN63_31,31,Hải Phòng,hai phong,municipality,Đồng bằng sông Hồng
 LOC_VN63_33,33,Hưng Yên,hung yen,province,Đồng bằng sông Hồng
 LOC_VN63_34,34,Thái Bình,thai binh,province,Đồng bằng sông Hồng
 LOC_VN63_35,35,Hà Nam,ha nam,province,Đồng bằng sông Hồng
@@ -30,7 +30,7 @@ LOC_VN63_42,42,Hà Tĩnh,ha tinh,province,Bắc Trung Bộ và duyên hải mi�
 LOC_VN63_44,44,Quảng Bình,quang binh,province,Bắc Trung Bộ và duyên hải miền Trung
 LOC_VN63_45,45,Quảng Trị,quang tri,province,Bắc Trung Bộ và duyên hải miền Trung
 LOC_VN63_46,46,Thừa Thiên Huế,thua thien hue,province,Bắc Trung Bộ và duyên hải miền Trung
-LOC_VN63_48,48,Đà Nẵng,da nang,city,Bắc Trung Bộ và duyên hải miền Trung
+LOC_VN63_48,48,Đà Nẵng,da nang,municipality,Bắc Trung Bộ và duyên hải miền Trung
 LOC_VN63_49,49,Quảng Nam,quang nam,province,Bắc Trung Bộ và duyên hải miền Trung
 LOC_VN63_51,51,Quảng Ngãi,quang ngai,province,Bắc Trung Bộ và duyên hải miền Trung
 LOC_VN63_52,52,Bình Định,binh dinh,province,Bắc Trung Bộ và duyên hải miền Trung
@@ -48,7 +48,7 @@ LOC_VN63_72,72,Tây Ninh,tay ninh,province,Đông Nam Bộ
 LOC_VN63_74,74,Bình Dương,binh duong,province,Đông Nam Bộ
 LOC_VN63_75,75,Đồng Nai,dong nai,province,Đông Nam Bộ
 LOC_VN63_77,77,Bà Rịa - Vũng Tàu,ba ria vung tau,province,Đông Nam Bộ
-LOC_VN63_79,79,Hồ Chí Minh,ho chi minh,city,Đông Nam Bộ
+LOC_VN63_79,79,Hồ Chí Minh,ho chi minh,municipality,Đông Nam Bộ
 LOC_VN63_80,80,Long An,long an,province,Đồng bằng sông Cửu Long
 LOC_VN63_82,82,Tiền Giang,tien giang,province,Đồng bằng sông Cửu Long
 LOC_VN63_83,83,Bến Tre,ben tre,province,Đồng bằng sông Cửu Long
@@ -57,7 +57,7 @@ LOC_VN63_86,86,Vĩnh Long,vinh long,province,Đồng bằng sông Cửu Long
 LOC_VN63_87,87,Đồng Tháp,dong thap,province,Đồng bằng sông Cửu Long
 LOC_VN63_89,89,An Giang,an giang,province,Đồng bằng sông Cửu Long
 LOC_VN63_91,91,Kiên Giang,kien giang,province,Đồng bằng sông Cửu Long
-LOC_VN63_92,92,Cần Thơ,can tho,city,Đồng bằng sông Cửu Long
+LOC_VN63_92,92,Cần Thơ,can tho,municipality,Đồng bằng sông Cửu Long
 LOC_VN63_93,93,Hậu Giang,hau giang,province,Đồng bằng sông Cửu Long
 LOC_VN63_94,94,Sóc Trăng,soc trang,province,Đồng bằng sông Cửu Long
 LOC_VN63_95,95,Bạc Liêu,bac lieu,province,Đồng bằng sông Cửu Long

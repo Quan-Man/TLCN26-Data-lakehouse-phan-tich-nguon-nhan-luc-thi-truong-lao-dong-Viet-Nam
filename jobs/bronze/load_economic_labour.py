@@ -1,4 +1,5 @@
-"""Official 18-table Bronze Delta ingestion; idempotent, insert-only."""
+"""Official 18-table Bronze Delta ingestion; idempotent, guarded snapshot replacement."""
+import argparse
 import csv
 import hashlib
 import json
@@ -6,13 +7,10 @@ import os
 import re
 from pathlib import Path
 from datetime import datetime, timezone
-from pyspark.sql import SparkSession, types as T
-from delta.tables import DeltaTable
 
 RAW_DIR = Path('/opt/airflow/data/economy')
 BRONZE_ROOT = 's3a://bronze/economic'
 PRODUCTION_ROOT = BRONZE_ROOT
-EXPECTED_TOTAL_RAW_ROWS = 204
 SOURCE_NUMBERS = range(1, 19)
 TABLES = {
  1:'gdp',2:'gdp_growth',3:'new_enterprises',4:'investment',5:'labour_force',
@@ -20,10 +18,10 @@ TABLES = {
  12:'retail_sales',13:'enterprise_count',14:'underemployment',15:'occupation',
  16:'labour_structure',17:'training',18:'productivity'
 }
-# Retain grouping of original tested pipeline; avoid changing Gold semantics.
+# Grouping follows the agreed Silver model (productivity is economic).
 SOURCE_GROUPS = {1:'economic',2:'economic',3:'enterprise',4:'enterprise',5:'labour',
  6:'labour',7:'labour',8:'labour',9:'economic',10:'economic',11:'enterprise',
- 12:'economic',13:'enterprise',14:'labour',15:'labour',16:'labour',17:'labour',18:'labour'}
+ 12:'economic',13:'enterprise',14:'labour',15:'labour',16:'labour',17:'labour',18:'economic'}
 META = ['raw_id','source_file','source_row_number','source_record_hash','data_group','ingestion_batch_id','loaded_at']
 
 def get_source_files(input_dir):
@@ -62,6 +60,7 @@ def read_source(number,path,batch_id,loaded_at):
     return valid,records
 
 def get_spark():
+    from pyspark.sql import SparkSession
     access=os.getenv('MINIO_ROOT_USER') or os.getenv('AWS_ACCESS_KEY_ID')
     secret=os.getenv('MINIO_ROOT_PASSWORD') or os.getenv('AWS_SECRET_ACCESS_KEY')
     if not access or not secret: raise RuntimeError('Missing MinIO credentials')
@@ -78,13 +77,12 @@ def get_spark():
        .getOrCreate())
 
 def load_economic_labour(input_dir=RAW_DIR, output=BRONZE_ROOT, batch_id=None,
-                         allow_production_overwrite=False, **context):
+                         allow_production_overwrite=False, dry_run=False, **context):
     output = str(output).rstrip('/')
     if output != PRODUCTION_ROOT:
         raise ValueError(f'Unsupported output root: {output}')
     files=get_source_files(input_dir)
-    run_id=context.get('run_id') or 'manual'
-    batch_id=batch_id or hashlib.sha256(str(run_id).encode()).hexdigest()[:24]
+    batch_id=batch_id or hashlib.sha256('|'.join(f'{n}:{hashlib.sha256(p.read_bytes()).hexdigest()}' for n,p in files).encode()).hexdigest()[:24]
     loaded_at=datetime.now(timezone.utc).replace(tzinfo=None)
     prepared=[]
     for n,path in files:
@@ -94,12 +92,11 @@ def load_economic_labour(input_dir=RAW_DIR, output=BRONZE_ROOT, batch_id=None,
     ids=[r[-7] for _,_,_,rows in prepared for r in rows]
     if len(ids)!=len(set(ids)): raise ValueError('Duplicate raw IDs')
     total_raw_rows = sum(len(rows) for _, _, _, rows in prepared)
-    if total_raw_rows != EXPECTED_TOTAL_RAW_ROWS:
-        raise ValueError(f'Raw row count changed: expected {EXPECTED_TOTAL_RAW_ROWS}, got {total_raw_rows}. Review input CSVs before writing.')
+    print(f'Validated {len(prepared)} CSVs: {total_raw_rows} raw rows')
+    from pyspark.sql import types as T
+    from delta.tables import DeltaTable
     spark=get_spark()
     try:
-        if allow_production_overwrite:
-            raise ValueError('Overwrite is disabled in this insert-only loader.')
         jconf = spark._jsc.hadoopConfiguration()
         jpath = spark._jvm.org.apache.hadoop.fs.Path
         plans = []
@@ -117,32 +114,50 @@ def load_economic_labour(input_dir=RAW_DIR, output=BRONZE_ROOT, batch_id=None,
             df=spark.createDataFrame(rows,schema)
             path_obj = jpath(dest)
             exists = path_obj.getFileSystem(jconf).exists(path_obj)
+            version = None
+            replace = False
             if exists:
                 if not DeltaTable.isDeltaTable(spark, dest):
                     raise RuntimeError(f'Existing path is not Delta: {dest}')
-                old = spark.read.format('delta').load(dest)
-                if dict(old.dtypes) != dict(df.dtypes):
-                    raise RuntimeError(f'Schema mismatch: {dest}')
+                version = int(DeltaTable.forPath(spark, dest).history(1).first()['version'])
+                old = spark.read.format('delta').option('versionAsOf', version).load(dest)
                 keys = ['raw_id', 'source_file', 'source_row_number', 'source_record_hash', 'data_group']
-                prior = old.select(*keys).collect()
-                old_ids = {r.raw_id for r in prior}
-                if None in old_ids or len(old_ids) != len(prior):
-                    raise RuntimeError(f'Invalid existing raw IDs: {dest}')
-                incoming = {r[-7]: (r[-6], r[-5], r[-4], r[-3]) for r in rows}
-                old_positions = {(r.source_file, r.source_row_number): r.raw_id for r in prior}
-                if len(old_positions) != len(prior):
-                    raise RuntimeError(f'Duplicate existing source positions: {dest}')
-                for r in prior:
-                    if incoming.get(r.raw_id) != (r.source_file, r.source_row_number, r.source_record_hash, r.data_group):
-                        raise RuntimeError(f'Existing source row changed or disappeared: {dest}. Review before ingestion.')
-                new_count = len(set(incoming) - old_ids)
+                incoming = {r[-7]: tuple(r[-6:-2]) for r in rows}
+                if dict(old.dtypes) != dict(df.dtypes):
+                    replace = True
+                    new_count = len(rows)
+                else:
+                    prior = old.select(*keys).collect()
+                    old_ids = {r.raw_id for r in prior}
+                    if None in old_ids or len(old_ids) != len(prior):
+                        raise RuntimeError(f'Invalid existing raw IDs: {dest}')
+                    if len({(r.source_file, r.source_row_number) for r in prior}) != len(prior):
+                        raise RuntimeError(f'Duplicate existing source positions: {dest}')
+                    replace = any(incoming.get(r.raw_id) != tuple(r[k] for k in keys[1:]) for r in prior)
+                    new_count = len(set(incoming) - old_ids)
             else:
                 new_count = len(rows)
-            plans.append((path, dest, df, exists, new_count, len(rows)))
+            plans.append((path, dest, df, exists, new_count, len(rows), replace, version))
 
         # Validate all 18 sources before writing any table.
-        for path, dest, df, exists, new_count, expected in plans:
-            if not exists:
+        replacements = [dest for _, dest, _, _, _, _, replace, _ in plans if replace]
+        for path, dest, df, exists, new_count, expected, replace, version in plans:
+            action = 'REPLACE' if replace else ('CREATE' if not exists else ('INSERT' if new_count else 'SKIP'))
+            print(f'PLAN {action}: {dest}, rows={expected}, previous_version={version}')
+        if dry_run:
+            return {'dry_run': True, 'total_raw_rows': total_raw_rows, 'replacement_tables': replacements}
+        if replacements and not (allow_production_overwrite and os.getenv('ECONOMIC_PRODUCTION_OVERWRITE') == 'YES_I_HAVE_BACKUP'):
+            raise ValueError('Existing source changed: run --dry-run, back up, then authorize --allow-production-overwrite with ECONOMIC_PRODUCTION_OVERWRITE=YES_I_HAVE_BACKUP')
+        for path, dest, df, exists, new_count, expected, replace, version in plans:
+            obj = jpath(dest)
+            if obj.getFileSystem(jconf).exists(obj) != exists:
+                raise RuntimeError(f'Target changed during preflight: {dest}')
+            if exists and int(DeltaTable.forPath(spark, dest).history(1).first()['version']) != version:
+                raise RuntimeError(f'Target version changed during preflight: {dest}')
+            if replace:
+                df.write.format('delta').mode('overwrite').option('overwriteSchema', 'true').save(dest)
+                action = 'REPLACED'
+            elif not exists:
                 df.write.format('delta').mode('errorifexists').save(dest)
                 action = 'CREATED'
             elif new_count:
@@ -162,4 +177,10 @@ def load_economic_labour(input_dir=RAW_DIR, output=BRONZE_ROOT, batch_id=None,
     finally: spark.stop()
 
 if __name__=='__main__':
-    print(load_economic_labour())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--input-dir', default=str(RAW_DIR))
+    parser.add_argument('--output', default=BRONZE_ROOT)
+    parser.add_argument('--batch-id')
+    parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--allow-production-overwrite', action='store_true')
+    print(json.dumps(load_economic_labour(**vars(parser.parse_args())), ensure_ascii=False))

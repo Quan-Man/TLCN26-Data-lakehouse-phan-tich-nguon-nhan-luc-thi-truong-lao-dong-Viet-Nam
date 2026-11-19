@@ -15,8 +15,8 @@ from airflow.operators.python import PythonOperator
 # 1. ENABLE / DISABLE DATA SOURCES
 # ============================================================
 
-ENABLE_JOBS = True
-ENABLE_EDUCATION = True
+ENABLE_JOBS = False
+ENABLE_EDUCATION = False
 ENABLE_ECONOMY = True
 
 
@@ -101,8 +101,8 @@ with DAG(
             task_id="load_job_postings",
             bash_command=(
                 "cd /opt/airflow && "
-                "python /opt/airflow/jobs/bronze/"
-                "ingest_job_posting.py"
+                "python /opt/airflow/jobs/bronze/ingest_job_posting.py "
+                "--minio --bucket bronze --prefix job_posting --create-bucket"
             ),
         )
 

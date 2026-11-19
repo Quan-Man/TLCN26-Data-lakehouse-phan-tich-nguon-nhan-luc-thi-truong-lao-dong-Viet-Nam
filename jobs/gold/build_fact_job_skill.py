@@ -16,8 +16,9 @@ except ImportError:
 LOG = logging.getLogger(__name__)
 PAIR = ['job_fact_key', 'skill_key']
 EVIDENCE = ('job_id', 'skill_id', 'is_required', 'required_level', 'years_required', 'confidence_score')
-CONTEXT = {'date_key': 'posted_date_key', 'location_key': 'location_key',
-           'occupation_key': 'occupation_key', 'industry_key': 'industry_key'}
+PAIR_IDENTITIES = ('job_id', 'skill_id')
+CONTEXT = {'date_key': 'posted_date_key', 'location_key': 'location_key'}
+# 'occupation_key' and 'industry_key' are disabled on fact_job_posting.
 
 
 def fact_schema():
@@ -27,12 +28,6 @@ def fact_schema():
         T.StructField('skill_key', T.StringType(), True),
         T.StructField('date_key', T.IntegerType(), True),
         T.StructField('location_key', T.StringType(), True),
-        T.StructField('occupation_key', T.StringType(), True),
-        T.StructField('industry_key', T.StringType(), True),
-        T.StructField('is_required', T.BooleanType(), True),
-        T.StructField('required_level', T.StringType(), True),
-        T.StructField('years_required', T.DecimalType(8, 2), True),
-        T.StructField('confidence_score', T.DoubleType(), True),
         T.StructField('job_id', T.StringType(), True),
         T.StructField('skill_id', T.StringType(), True),
         T.StructField('reference_date', T.DateType(), True),
@@ -112,14 +107,13 @@ def dimension_for_context(child_key, dimensions):
 
 def validate_parent(parent, dimensions, reference_date=None):
     from pyspark.sql import functions as F, types as T
-    required = ('job_fact_key', 'job_id', 'posted_date_key', 'location_key', 'occupation_key',
-        'industry_key', 'skill_count', 'seen_in_silver', 'reference_date', 'skill_count_as_of',
+    required = ('job_fact_key', 'job_id', 'posted_date_key', 'location_key',
+        'seen_in_silver', 'reference_date', 'skill_count_as_of',
         'dimension_date_policy', 'posted_date')
     jobs.require_columns(parent, required, 'fact_job_posting: run build_jobs_gold.py first')
     for column, dtype in [('job_id', T.StringType), ('job_fact_key', T.StringType),
         ('posted_date_key', T.IntegerType), ('seen_in_silver', T.BooleanType),
-        ('skill_count', T.IntegerType), ('location_key', T.StringType),
-        ('occupation_key', T.StringType), ('industry_key', T.StringType),
+        ('location_key', T.StringType),
         ('dimension_date_policy', T.StringType), ('reference_date', T.DateType),
         ('skill_count_as_of', T.DateType), ('posted_date', T.DateType)]:
         if not isinstance(parent.schema[column].dataType, dtype):
@@ -138,8 +132,7 @@ def validate_parent(parent, dimensions, reference_date=None):
         raise ValueError('reference_date must be explicit for empty parent tables')
     jobs.fail_if(parent, F.col('reference_date').isNull() | (F.col('reference_date') != F.lit(reference_date)),
                  'Parent reference_date differs; run build_jobs_gold for this batch first')
-    jobs.fail_if(parent, F.col('seen_in_silver').isNull() | F.col('skill_count').isNull()
-        | (F.col('skill_count') < 0) | F.col('skill_count_as_of').isNull()
+    jobs.fail_if(parent, F.col('seen_in_silver').isNull() | F.col('skill_count_as_of').isNull()
         | (F.col('skill_count_as_of') > F.lit(reference_date))
         | (F.col('seen_in_silver') & (F.col('skill_count_as_of') != F.lit(reference_date))),
         'Invalid parent snapshot flags or skill_count_as_of')
@@ -176,8 +169,6 @@ def validate_child(frame, parent, dim_skill, check_context=True):
         F.col('c.skill_key') == F.col('s.skill_key'), 'left')
     jobs.fail_if(linked, F.col('s.skill_key').isNull()
         | ~F.col('c.skill_id').eqNullSafe(F.col('s.skill_id')), 'Child skill ID/key mapping is invalid')
-    jobs.fail_if(frame, (F.col('years_required') < 0) | F.isnan('confidence_score')
-        | ~F.col('confidence_score').between(0, 1), 'Invalid child evidence values')
 
 
 def desired_snapshot(spark, evidence, parent, dim_skill, old_child):
@@ -185,7 +176,7 @@ def desired_snapshot(spark, evidence, parent, dim_skill, old_child):
     seen = parent.where(F.col('seen_in_silver')).select('job_id')
     if evidence.select('job_id').distinct().join(parent.select('job_id'), 'job_id', 'left_anti').limit(1).count():
         raise ValueError('Silver job_skills has job_id missing from fact_job_posting')
-    fresh = evidence.join(seen, 'job_id', 'inner').select(*EVIDENCE)
+    fresh = evidence.join(seen, 'job_id', 'inner').select(*PAIR_IDENTITIES)
     retained = parent.where(~F.col('seen_in_silver')).select('job_id', 'job_fact_key')
     if old_child is None:
         if retained.limit(1).count():
@@ -194,13 +185,13 @@ def desired_snapshot(spark, evidence, parent, dim_skill, old_child):
     else:
         # Orphans in a prior child table require repair, not an implicit delete.
         validate_child(old_child, parent, dim_skill, check_context=False)
-        prior = old_child.join(retained.select('job_fact_key'), 'job_fact_key', 'inner').select(*EVIDENCE)
+        prior = old_child.join(retained.select('job_fact_key'), 'job_fact_key', 'inner').select(*PAIR_IDENTITIES)
         base = fresh.unionByName(prior)
     # Join every row to the parent once; primary location and date are not re-inferred.
     contextual = base.alias('e').join(parent.alias('p'), F.col('e.job_id') == F.col('p.job_id'), 'inner')
-    contextual = contextual.select(*[F.col(f'e.{c}').alias(c) for c in EVIDENCE],
+    contextual = contextual.select(*[F.col(f'e.{c}').alias(c) for c in PAIR_IDENTITIES],
         F.col('p.job_fact_key'), F.col('p.posted_date_key').alias('date_key'),
-        F.col('p.location_key'), F.col('p.occupation_key'), F.col('p.industry_key'),
+        F.col('p.location_key'),
         F.col('p.reference_date'), F.col('p.skill_count_as_of').alias('skill_source_as_of'),
         F.when(F.col('p.dimension_date_policy') == 'posted', F.col('p.posted_date'))
          .otherwise(F.col('p.reference_date')).alias('_lookup_date'))
@@ -239,7 +230,7 @@ def synchronize(spark, path, desired, old, changes):
 
 
 def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold_root=None,
-                        reference_date=None, max_reference_rows=100000, dry_run=False):
+                        reference_date=None, max_reference_rows=100000, dry_run=False, replace_fact_schema=False):
     from pyspark import StorageLevel
     from pyspark.sql import functions as F
     silver_root = (silver_root or os.getenv('JOBS_SILVER_ROOT', 's3a://silver/jobs')).rstrip('/')
@@ -258,14 +249,14 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
             pinned[path] = version
             return frame
         dimensions = {}
-        for name, spec in shared.SPECS.items():
+        for name, spec in {**shared.SHARED_SPECS, 'skill': shared.SPECS['skill']}.items():
             root = gold_root if name == 'skill' else shared_root
             frame = load(f'{root}/dim_{name}', shared.dimension_schema(spec))
             shared.validate_dimension(shared.bounded_rows(frame, max_reference_rows), spec)
             dimensions[name] = frame
         dimensions['date'] = load(f'{shared_root}/dim_date', shared.date_schema())
         jobs.unique(dimensions['date'], ['date_key'], 'dim_date')
-        if dimensions['date'].where("date_key = 0 AND full_date = DATE '1900-01-01'").count() != 1:
+        if dimensions['date'].where((F.col('date_key') == 0) & (F.col('full_date') == F.lit(shared.UNKNOWN_START))).count() != 1:
             raise ValueError('dim_date must have one unknown date member')
         parent = load(f'{gold_root}/fact_job_posting')
         reference_date = validate_parent(parent, dimensions, reference_date)
@@ -274,7 +265,19 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
         cached.append(evidence)
         evidence.count()
         path = f'{gold_root}/fact_job_skill'
-        old = load(path, fact_schema(), optional=True)
+        old = load(path, optional=True)
+        schema_migration = False
+        if old is not None:
+            wanted = {f.name: f.dataType for f in fact_schema()}
+            actual = {f.name: f.dataType for f in old.schema}
+            removed = {'occupation_key', 'industry_key', 'is_required', 'required_level', 'years_required', 'confidence_score'}
+            if actual != wanted:
+                if set(actual) - set(wanted) != removed or any(actual.get(c) != t for c, t in wanted.items()):
+                    raise ValueError('Unsupported fact_job_skill schema migration')
+                schema_migration = True
+                old = old.select(*wanted)
+                if not dry_run and not replace_fact_schema:
+                    raise ValueError('Run with --replace-fact-schema to remove legacy columns')
         if old is not None:
             old = old.persist(StorageLevel.MEMORY_AND_DISK)
             cached.append(old)
@@ -292,14 +295,18 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
             # still must serialize writers: this is not a distributed lock.
             for input_path, version in pinned.items():
                 assert_version(spark, input_path, version)
-            written = synchronize(spark, path, desired, old, changes)
+            if schema_migration:
+                desired.write.format('delta').mode('overwrite').option('overwriteSchema', 'true').save(path)
+                written = True
+            else:
+                written = synchronize(spark, path, desired, old, changes)
         from delta.tables import DeltaTable
         output_version = (int(DeltaTable.forPath(spark, path).history(1).first()['version'])
                           if written else pinned[path])
         retained_jobs = parent.where(~F.col('seen_in_silver')).count()
-        report = {'table': 'gold_jobs.fact_job_skill', 'path': path, 'rows': rows,
+        report = {'table': 'delta.jobs.fact_job_skill', 'path': path, 'rows': rows,
             'reference_date': reference_date.isoformat(), 'retained_jobs': retained_jobs,
-            'changes': changes, 'written': written, 'dry_run': dry_run,
+            'changes': changes, 'schema_migration': schema_migration, 'written': written, 'dry_run': dry_run,
             'reconciliation': reconciliation['status'], 'output_version': output_version,
             'input_versions': {p: v for p, v in pinned.items() if p != path}}
         LOG.info('Job skill Gold: %s', json.dumps(report, ensure_ascii=False))
@@ -319,6 +326,7 @@ def main():
     parser.add_argument('--reference-date', help='Must equal parent snapshot date; inferred when omitted')
     parser.add_argument('--max-reference-rows', type=int, default=100000)
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--replace-fact-schema', action='store_true', help='Allow overwrite to remove the six legacy fact columns')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     print(json.dumps(build_fact_job_skill(**vars(args)), ensure_ascii=False, indent=2))

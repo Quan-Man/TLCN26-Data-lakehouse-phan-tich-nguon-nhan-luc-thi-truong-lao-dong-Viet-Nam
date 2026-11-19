@@ -13,8 +13,8 @@ from airflow.operators.bash import BashOperator
 # 1. ENABLE / DISABLE DATA SOURCES
 # ============================================================
 
-ENABLE_JOBS = True
-ENABLE_EDUCATION = True
+ENABLE_JOBS = False
+ENABLE_EDUCATION = False
 ENABLE_ECONOMY = True
 
 
