@@ -78,7 +78,7 @@ def _activate(**context):
 with DAG(dag_id=DAG_ID,start_date=pendulum.datetime(2026,9,1,tz='Asia/Ho_Chi_Minh'),
     schedule=None,catchup=False,max_active_runs=1,max_active_tasks=1,
     dagrun_timeout=timedelta(hours=8),
-    default_args={'owner':'lakehouse','retries':2,'retry_delay':timedelta(minutes=1),'depends_on_past':False},
+    default_args={'owner':'tlcn2026-nhom3','retries':2,'retry_delay':timedelta(minutes=1),'depends_on_past':False},
     tags=['publication','analytics','batch','delta','trino'],doc_md=__doc__,
     params={'batch_id':Param(None,type=['null','string'],description='Required: shared orchestration batch ID'),
         'period':Param(None,type=['null','string'],description='Required: publication period, e.g. 2026-11'),

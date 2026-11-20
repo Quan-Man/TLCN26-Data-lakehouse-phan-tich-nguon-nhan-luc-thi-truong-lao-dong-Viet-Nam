@@ -84,14 +84,23 @@ def canonical_aliases(records, skill_ids):
     return sorted(result.values(), key=lambda row: row['normalized_alias'])
 
 
-def prepare_mappings(*, mapping_root, as_of, date_start='2010-01-01', date_end=None,
-                     academic_start_month=9, max_reference_rows=100000):
+def prepare_mappings(*, mapping_root, as_of, date_start=None, date_end=None,
+                     academic_start_month=9, max_reference_rows=100000,
+                     jobs_json_dir=None, calendar_years=None):
     as_of = shared.parse_date(as_of, 'as_of')
     start = shared.parse_date(date_start, 'date_start')
-    end = shared.parse_date(date_end, 'date_end') if date_end else date(as_of.year + 2, 12, 31) if as_of else None
-    if as_of is None or start is None or end is None or max_reference_rows < 1:
-        raise ValueError('Explicit as_of/date range and positive max_reference_rows are required')
-    shared.calendar_rows(start, end, academic_start_month)  # Range/config preflight.
+    end = shared.parse_date(date_end, 'date_end')
+    if as_of is None or bool(start) != bool(end) or max_reference_rows < 1:
+        raise ValueError('as_of, both date range endpoints if set, and positive max_reference_rows are required')
+    if start:
+        shared.calendar_rows(start, end, academic_start_month)
+        years = None
+    else:
+        jobs_json_dir = jobs_json_dir or str(Path(__file__).resolve().parents[2] / 'data' / 'jobs')
+        years = shared.job_json_years(jobs_json_dir)
+        if calendar_years is not None and years != calendar_years:
+            raise ValueError('Job JSON years changed after validation; rerun the reference DAG')
+        shared.calendar_for_years(years, academic_start_month)
     root = Path(mapping_root).resolve()
     catalogs, inputs = {}, {}
     for name, spec in shared.SPECS.items():
@@ -110,8 +119,9 @@ def prepare_mappings(*, mapping_root, as_of, date_start='2010-01-01', date_end=N
         raise ValueError('skill_aliases.csv requires alias, skill_id headers')
     aliases = canonical_aliases(records, {r['skill_id'] for r in catalogs['skill']})
     inputs['skill_alias'] = {'path': str(aliases_path), 'sha256': sha, 'rows': len(records)}
-    settings = {'mapping_root': str(root), 'as_of': as_of.isoformat(), 'date_start': start.isoformat(),
-        'date_end': end.isoformat(), 'academic_start_month': academic_start_month,
+    settings = {'mapping_root': str(root), 'as_of': as_of.isoformat(), 'date_start': start.isoformat() if start else None,
+        'date_end': end.isoformat() if end else None, 'jobs_json_dir': jobs_json_dir, 'calendar_years': years,
+        'academic_start_month': academic_start_month,
         'max_reference_rows': max_reference_rows}
     fingerprint = digest({'settings': settings, 'inputs': inputs})
     return catalogs, aliases, {'settings': settings, 'inputs': inputs, 'fingerprint': fingerprint}
@@ -172,22 +182,13 @@ def synchronize(spark, path, rows, previous, schema, key):
 
 
 def calendar_union(old, settings):
-    """Expand Silver calendar; reject changed attributes instead of rewriting."""
-    requested = shared.calendar_rows(shared.parse_date(settings['date_start'], 'date_start'),
-        shared.parse_date(settings['date_end'], 'date_end'), settings['academic_start_month'])
-    combined = {r['date_key']: r for r in old or []}
-    if len(combined) != len(old or []):
-        raise ValueError('ref_date: duplicate date keys')
-    for row in requested:
-        if row['date_key'] in combined and combined[row['date_key']] != row:
-            raise ValueError('ref_date attributes changed; explicit migration is required')
-        combined[row['date_key']] = row
-    actual = [r['full_date'] for r in combined.values() if r['date_key'] != 0]
-    full = shared.calendar_rows(min(actual), max(actual), settings['academic_start_month'])
-    expected = {r['date_key']: r for r in full}
-    if any(expected.get(key) != row for key, row in combined.items()):
-        raise ValueError('ref_date: invalid existing calendar')
-    return full
+    """Preserve existing dates and add only the requested years or range."""
+    if settings.get('date_start'):
+        requested = shared.calendar_rows(shared.parse_date(settings['date_start'], 'date_start'),
+            shared.parse_date(settings['date_end'], 'date_end'), settings['academic_start_month'])
+    else:
+        requested = shared.calendar_for_years(settings['calendar_years'], settings['academic_start_month'])
+    return shared.union_calendar(old, requested, settings['academic_start_month'])
 
 
 def build_shared_reference(*, validation, silver_root='s3a://silver/reference',
@@ -207,11 +208,12 @@ def build_shared_reference(*, validation, silver_root='s3a://silver/reference',
         # Validate existing Gold SCD/calendar BEFORE any Silver mutation.
         gold_preview = shared.build_shared_dimensions(spark=spark, sources={n: manifest['inputs'][n]['path'] for n in shared.SPECS},
             output_root=gold_root, as_of=settings['as_of'], date_start=settings['date_start'], date_end=settings['date_end'],
+            calendar_years=settings['calendar_years'], jobs_json_dir=settings['jobs_json_dir'],
             academic_start_month=settings['academic_start_month'], max_reference_rows=maximum, dry_run=True)
         if validate_mappings(**settings)['fingerprint'] != manifest['fingerprint']:
             raise ValueError('Mapping changed during preflight; rerun validation')
-        calendar_settings = dict(settings, date_start=gold_preview['dim_date']['start'],
-            date_end=gold_preview['dim_date']['end'])
+        calendar_settings = dict(settings, date_start=None, date_end=None,
+            calendar_years=gold_preview['dim_date']['years'])
         prepared = []
         for name, records in {**catalogs, 'skill_alias': aliases, 'date': []}.items():
             path, schema = f'{silver_root}/ref_{name}', reference_schema(name)
@@ -251,6 +253,7 @@ def build_gold_from_reference(*, reference, spark=None):
             sources={n: reference['tables'][n]['path'] for n in shared.SPECS}, source_format='delta',
             output_root=reference['gold_root'], as_of=settings['as_of'],
             date_start=settings['date_start'], date_end=settings['date_end'],
+            calendar_years=settings['calendar_years'], jobs_json_dir=settings['jobs_json_dir'],
             academic_start_month=settings['academic_start_month'], max_reference_rows=settings['max_reference_rows'])
         # Do not emit readiness for an input advanced by another writer.
         for table in reference['tables'].values():

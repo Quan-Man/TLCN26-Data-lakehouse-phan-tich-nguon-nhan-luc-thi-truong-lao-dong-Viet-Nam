@@ -16,8 +16,9 @@ except ImportError:
 LOG = logging.getLogger(__name__)
 PAIR = ['job_fact_key', 'skill_key']
 EVIDENCE = ('job_id', 'skill_id', 'is_required', 'required_level', 'years_required', 'confidence_score')
-CONTEXT = {'date_key': 'posted_date_key', 'location_key': 'location_key',
-           'occupation_key': 'occupation_key', 'industry_key': 'industry_key'}
+PAIR_IDENTITIES = ('job_id', 'skill_id')
+CONTEXT = {'date_key': 'posted_date_key', 'location_key': 'location_key'}
+# 'occupation_key' and 'industry_key' are disabled on fact_job_posting.
 
 
 def fact_schema():
@@ -27,12 +28,12 @@ def fact_schema():
         T.StructField('skill_key', T.StringType(), True),
         T.StructField('date_key', T.IntegerType(), True),
         T.StructField('location_key', T.StringType(), True),
-        T.StructField('occupation_key', T.StringType(), True),
-        T.StructField('industry_key', T.StringType(), True),
-        T.StructField('is_required', T.BooleanType(), True),
-        T.StructField('required_level', T.StringType(), True),
-        T.StructField('years_required', T.DecimalType(8, 2), True),
-        T.StructField('confidence_score', T.DoubleType(), True),
+        # T.StructField('occupation_key', T.StringType(), True),
+        # T.StructField('industry_key', T.StringType(), True),
+        # T.StructField('is_required', T.BooleanType(), True),
+        # T.StructField('required_level', T.StringType(), True),
+        # T.StructField('years_required', T.DecimalType(8, 2), True),
+        # T.StructField('confidence_score', T.DoubleType(), True),
         T.StructField('job_id', T.StringType(), True),
         T.StructField('skill_id', T.StringType(), True),
         T.StructField('reference_date', T.DateType(), True),
@@ -112,14 +113,13 @@ def dimension_for_context(child_key, dimensions):
 
 def validate_parent(parent, dimensions, reference_date=None):
     from pyspark.sql import functions as F, types as T
-    required = ('job_fact_key', 'job_id', 'posted_date_key', 'location_key', 'occupation_key',
-        'industry_key', 'skill_count', 'seen_in_silver', 'reference_date', 'skill_count_as_of',
+    required = ('job_fact_key', 'job_id', 'posted_date_key', 'location_key',
+        'seen_in_silver', 'reference_date', 'skill_count_as_of',
         'dimension_date_policy', 'posted_date')
     jobs.require_columns(parent, required, 'fact_job_posting: run build_jobs_gold.py first')
     for column, dtype in [('job_id', T.StringType), ('job_fact_key', T.StringType),
         ('posted_date_key', T.IntegerType), ('seen_in_silver', T.BooleanType),
-        ('skill_count', T.IntegerType), ('location_key', T.StringType),
-        ('occupation_key', T.StringType), ('industry_key', T.StringType),
+        ('location_key', T.StringType),
         ('dimension_date_policy', T.StringType), ('reference_date', T.DateType),
         ('skill_count_as_of', T.DateType), ('posted_date', T.DateType)]:
         if not isinstance(parent.schema[column].dataType, dtype):
@@ -138,8 +138,7 @@ def validate_parent(parent, dimensions, reference_date=None):
         raise ValueError('reference_date must be explicit for empty parent tables')
     jobs.fail_if(parent, F.col('reference_date').isNull() | (F.col('reference_date') != F.lit(reference_date)),
                  'Parent reference_date differs; run build_jobs_gold for this batch first')
-    jobs.fail_if(parent, F.col('seen_in_silver').isNull() | F.col('skill_count').isNull()
-        | (F.col('skill_count') < 0) | F.col('skill_count_as_of').isNull()
+    jobs.fail_if(parent, F.col('seen_in_silver').isNull() | F.col('skill_count_as_of').isNull()
         | (F.col('skill_count_as_of') > F.lit(reference_date))
         | (F.col('seen_in_silver') & (F.col('skill_count_as_of') != F.lit(reference_date))),
         'Invalid parent snapshot flags or skill_count_as_of')
@@ -176,8 +175,6 @@ def validate_child(frame, parent, dim_skill, check_context=True):
         F.col('c.skill_key') == F.col('s.skill_key'), 'left')
     jobs.fail_if(linked, F.col('s.skill_key').isNull()
         | ~F.col('c.skill_id').eqNullSafe(F.col('s.skill_id')), 'Child skill ID/key mapping is invalid')
-    jobs.fail_if(frame, (F.col('years_required') < 0) | F.isnan('confidence_score')
-        | ~F.col('confidence_score').between(0, 1), 'Invalid child evidence values')
 
 
 def desired_snapshot(spark, evidence, parent, dim_skill, old_child):
@@ -185,7 +182,7 @@ def desired_snapshot(spark, evidence, parent, dim_skill, old_child):
     seen = parent.where(F.col('seen_in_silver')).select('job_id')
     if evidence.select('job_id').distinct().join(parent.select('job_id'), 'job_id', 'left_anti').limit(1).count():
         raise ValueError('Silver job_skills has job_id missing from fact_job_posting')
-    fresh = evidence.join(seen, 'job_id', 'inner').select(*EVIDENCE)
+    fresh = evidence.join(seen, 'job_id', 'inner').select(*PAIR_IDENTITIES)
     retained = parent.where(~F.col('seen_in_silver')).select('job_id', 'job_fact_key')
     if old_child is None:
         if retained.limit(1).count():
@@ -194,13 +191,14 @@ def desired_snapshot(spark, evidence, parent, dim_skill, old_child):
     else:
         # Orphans in a prior child table require repair, not an implicit delete.
         validate_child(old_child, parent, dim_skill, check_context=False)
-        prior = old_child.join(retained.select('job_fact_key'), 'job_fact_key', 'inner').select(*EVIDENCE)
+        prior = old_child.join(retained.select('job_fact_key'), 'job_fact_key', 'inner').select(*PAIR_IDENTITIES)
         base = fresh.unionByName(prior)
     # Join every row to the parent once; primary location and date are not re-inferred.
     contextual = base.alias('e').join(parent.alias('p'), F.col('e.job_id') == F.col('p.job_id'), 'inner')
-    contextual = contextual.select(*[F.col(f'e.{c}').alias(c) for c in EVIDENCE],
+    contextual = contextual.select(*[F.col(f'e.{c}').alias(c) for c in PAIR_IDENTITIES],
         F.col('p.job_fact_key'), F.col('p.posted_date_key').alias('date_key'),
-        F.col('p.location_key'), F.col('p.occupation_key'), F.col('p.industry_key'),
+        F.col('p.location_key'),
+        # F.col('p.occupation_key'), F.col('p.industry_key'),
         F.col('p.reference_date'), F.col('p.skill_count_as_of').alias('skill_source_as_of'),
         F.when(F.col('p.dimension_date_policy') == 'posted', F.col('p.posted_date'))
          .otherwise(F.col('p.reference_date')).alias('_lookup_date'))

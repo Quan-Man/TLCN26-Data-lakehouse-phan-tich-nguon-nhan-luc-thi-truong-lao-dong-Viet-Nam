@@ -1,4 +1,3 @@
-"""Check actual Delta snapshots before publish (local batch sizes fit driver memory)."""
 import argparse
 from datetime import datetime, timezone
 import json

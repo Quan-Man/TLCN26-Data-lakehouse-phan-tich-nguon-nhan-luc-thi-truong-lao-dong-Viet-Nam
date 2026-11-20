@@ -838,11 +838,6 @@ LOG = logging.getLogger('silver.jobs')
 def run_pipeline(bronze_dir=ROOT/'data/bronze/job_posting', output_dir=ROOT/'data/silver/jobs',
                  mapping_dir=ROOT/'configs/mappings', location_policy='strict', output_format='jsonl',
                  upload=False, bucket='silver', prefix='jobs', create_bucket=False):
-    """API cho PythonOperator. Dừng khi kiểm tra dữ liệu/ghi/upload thất bại.
-
-    Gộp winners của snapshot trước để batch cũ không ghi đè bản mới.
-    Lock cục bộ: chỉ một writer dùng cùng output_dir; MinIO cần một writer ở Airflow.
-    """
     output_dir, mapping_dir = Path(output_dir).resolve(),Path(mapping_dir).resolve()
     effective_format = 'parquet' if upload else output_format
     if effective_format not in {'jsonl','parquet','both'}: raise ValueError('Unsupported output format')

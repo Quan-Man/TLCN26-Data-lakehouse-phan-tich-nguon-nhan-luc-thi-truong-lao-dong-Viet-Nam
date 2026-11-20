@@ -13,7 +13,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 LOCAL_TZ = pendulum.timezone("Asia/Ho_Chi_Minh")
 
 default_args = {
-    "owner": "data-engineering-team",
+    "owner": "tlcn2026-nhom3",
     "depends_on_past": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),

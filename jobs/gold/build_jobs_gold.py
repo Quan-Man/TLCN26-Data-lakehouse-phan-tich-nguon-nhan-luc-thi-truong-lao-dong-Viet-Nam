@@ -26,7 +26,8 @@ TEXT_COLUMNS = ('job_id', 'source_name', 'job_title', 'company_id', 'primary_loc
 NUMBER_COLUMNS = ('salary_min_vnd', 'salary_max_vnd', 'salary_midpoint_vnd',
                   'experience_min_years', 'experience_max_years')
 RAW_COLUMNS = (*TEXT_COLUMNS, 'posted_date', 'expiration_date', *NUMBER_COLUMNS, 'is_remote')
-FK_COLUMNS = ('location_key', 'industry_key', 'occupation_key', 'company_key')
+FK_COLUMNS = ('location_key', 'company_key')
+# Temporarily excluded from fact_job_posting: 'industry_key', 'occupation_key'.
 
 
 def normalize_s3a_root(path):
@@ -287,11 +288,18 @@ def build_fact(spark, jobs, skills, dimensions, company_dimension, reference_dat
     jobs = jobs.withColumn('skill_count_as_of', F.lit(reference_date).cast('date'))
     retained_count = 0
     if old_fact is not None:
-        require_columns(old_fact, (*RAW_COLUMNS, 'skill_count', 'skill_count_as_of'), 'existing fact')
+        disabled = {'industry_id', 'occupation_id', 'job_level', 'employment_type',
+                    'working_model', 'salary_status', 'is_remote'}
+        require_columns(old_fact, (*(column for column in RAW_COLUMNS if column not in disabled),
+                                   'skill_count_as_of'), 'existing fact')
         retained = old_fact.join(jobs.select('job_id'), 'job_id', 'left_anti')
         retained_count = retained.count()
-        retained = retained.select(*RAW_COLUMNS,
-            F.lit(False).alias('seen_in_silver'), F.col('skill_count').alias('_prior_skill_count'),
+        raw = [F.col(column) if column in retained.columns else
+               F.lit(None).cast('boolean' if column == 'is_remote' else 'string').alias(column)
+               for column in RAW_COLUMNS]
+        prior_count = F.col('skill_count') if 'skill_count' in retained.columns else F.lit(None).cast('int')
+        retained = retained.select(*raw,
+            F.lit(False).alias('seen_in_silver'), prior_count.alias('_prior_skill_count'),
             'skill_count_as_of')
         jobs = jobs.unionByName(retained)
     skills = prepare_skills(skills)
@@ -318,8 +326,8 @@ def build_fact(spark, jobs, skills, dimensions, company_dimension, reference_dat
     jobs = shared.attach_date_key(jobs, dimensions['date'], 'expiration_date', 'expiration_date_key')
     jobs = jobs.withColumn('_lookup_date', F.col('posted_date') if dimension_date_policy == 'posted'
                            else F.col('reference_date'))
-    for name, identity in [('location', 'primary_location_id'), ('industry', 'industry_id'),
-                           ('occupation', 'occupation_id')]:
+    for name, identity in [('location', 'primary_location_id')]:
+        # ('industry', 'industry_id'), ('occupation', 'occupation_id')
         if name not in dimensions:
             jobs = jobs.withColumn(f'{name}_key', F.lit('0'))
             continue
@@ -329,11 +337,14 @@ def build_fact(spark, jobs, skills, dimensions, company_dimension, reference_dat
     # UTC load time is changed only when a row's business state changes at merge.
     jobs = jobs.withColumn('loaded_at', F.lit(datetime.now(timezone.utc)).cast('timestamp'))
     columns = ['job_fact_key', 'job_id', 'posted_date_key', 'expiration_date_key', *FK_COLUMNS,
-        'source_name', 'job_title', 'job_level', 'education_level', 'employment_type', 'working_model',
-        *NUMBER_COLUMNS, 'has_salary', 'is_remote', 'is_active', 'skill_count', 'reference_date',
+        'source_name', 'job_title', 'education_level',
+        # 'job_level', 'employment_type', 'working_model',
+        *NUMBER_COLUMNS, 'has_salary', 'reference_date',
+        # 'is_remote', 'is_active', 'skill_count',
         'skill_count_as_of', 'dimension_date_policy', 'activity_status', 'seen_in_silver',
         'record_status', 'posted_date', 'expiration_date', 'company_id', 'primary_location_id',
-        'industry_id', 'occupation_id', 'salary_status', 'source_url', 'loaded_at']
+        # 'industry_id', 'occupation_id', 'salary_status',
+        'source_url', 'loaded_at']
     return jobs.select(*columns), retained_count
 
 
@@ -357,10 +368,8 @@ def validate_fact(fact, dimensions, company_dimension):
     unique(fact, ['job_fact_key'], 'fact_job_posting')
     fail_if(fact, F.col('job_fact_key') != job_key(F.col('job_id')),
             'fact_job_posting: incompatible key algorithm')
-    fail_if(fact, F.col('skill_count').isNull() | (F.col('skill_count') < 0), 'Invalid skill_count')
     checks = [('posted_date_key', dimensions['date']), ('expiration_date_key', dimensions['date']),
-              ('location_key', dimensions.get('location')), ('industry_key', dimensions.get('industry')),
-              ('occupation_key', dimensions.get('occupation')), ('company_key', company_dimension)]
+              ('location_key', dimensions.get('location')), ('company_key', company_dimension)]
     for key, target in checks:
         if target is None:
             continue
@@ -387,11 +396,9 @@ def upsert_fact(spark, path, fact, old):
 
 
 def reconcile_skill_fact(fact_jobs, fact_skills, silver_skills, dim_skill):
-    from pyspark.sql import functions as F, types as T
-    require_columns(fact_jobs, ('job_fact_key', 'job_id', 'skill_count', 'seen_in_silver'), 'fact_job_posting')
-    require_columns(fact_skills, ('job_fact_key', 'skill_key', 'is_required'), 'fact_job_skill')
-    if not isinstance(fact_skills.schema['is_required'].dataType, T.BooleanType):
-        raise ValueError('fact_job_skill.is_required must be BOOLEAN')
+    from pyspark.sql import functions as F
+    require_columns(fact_jobs, ('job_fact_key', 'job_id', 'seen_in_silver'), 'fact_job_posting')
+    require_columns(fact_skills, ('job_fact_key', 'skill_key'), 'fact_job_skill')
     unique(fact_jobs, ['job_fact_key'], 'fact_job_posting')
     unique(fact_skills, ['job_fact_key', 'skill_key'], 'fact_job_skill')
     if fact_skills.where(F.col('skill_key') == '0').limit(1).count():
@@ -420,24 +427,18 @@ def reconcile_skill_fact(fact_jobs, fact_skills, silver_skills, dim_skill):
         fail_if(identities, ~F.col('s.job_id').eqNullSafe(F.col('j.job_id')),
                 'fact_job_skill raw job_id differs from its parent key')
     unique(linked, ['job_fact_key', 'skill_id'], 'fact_job_skill (multiple versions of same skill)')
-    actual = linked.where(F.col('is_required') == True).groupBy('job_fact_key').agg(
-        F.countDistinct('skill_id').cast('int').alias('_actual'))
-    comparison = fact_jobs.join(actual, 'job_fact_key', 'left')
-    fail_if(comparison, F.col('skill_count').isNull() | (F.col('skill_count') != F.coalesce(F.col('_actual'), F.lit(0))),
-            'skill_count does not match required skills in fact_job_skill')
     # Exact-set check for jobs represented in this Silver snapshot. Retained
     # absent jobs keep the previously published skill set and its reference date.
     seen = fact_jobs.where(F.col('seen_in_silver')).select('job_id', 'job_fact_key')
     checked_silver = prepare_skills(silver_skills)
     if checked_silver.join(fact_jobs.select('job_id'), 'job_id', 'left_anti').limit(1).count():
         raise ValueError('Silver job_skills has orphan job_id')
-    expected = checked_silver.where(F.col('is_required') == True)
-    expected = expected.join(seen, 'job_id', 'inner').select('job_fact_key', 'skill_id').distinct()
-    observed = linked.where(F.col('is_required') == True).join(seen.select('job_fact_key'), 'job_fact_key')
+    expected = checked_silver.join(seen, 'job_id', 'inner').select('job_fact_key', 'skill_id').distinct()
+    observed = linked.join(seen.select('job_fact_key'), 'job_fact_key')
     observed = observed.select('job_fact_key', 'skill_id').distinct()
     if expected.join(observed, ['job_fact_key', 'skill_id'], 'left_anti').limit(1).count() or \
        observed.join(expected, ['job_fact_key', 'skill_id'], 'left_anti').limit(1).count():
-        raise ValueError('Required skill ID sets differ between Silver and fact_job_skill')
+        raise ValueError('Skill ID sets differ between Silver and fact_job_skill')
     return {'status': 'passed', 'fact_jobs': fact_jobs.count(), 'job_skill_pairs': fact_skills.count()}
 
 
@@ -501,7 +502,7 @@ def build_jobs_gold(spark=None, *, silver_root=None, shared_root=None, gold_root
         validate_fact(cached, dimensions, company_dimension)
         metrics = cached.agg(*[
             F.sum(F.when(F.col(key) == '0', 1).otherwise(0)).alias(f'unknown_{key}') for key in FK_COLUMNS
-        ], F.sum(F.when(F.col('is_active').isNull(), 1).otherwise(0)).alias('unknown_activity')).first().asDict()
+        ]).first().asDict()
         company_written = fact_written = False
         if not dry_run:
             company_written = shared.merge_rows(spark, company_path, company_rows, company_schema,
