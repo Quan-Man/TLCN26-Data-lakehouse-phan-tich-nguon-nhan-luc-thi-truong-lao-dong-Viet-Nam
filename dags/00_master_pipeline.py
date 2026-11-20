@@ -73,7 +73,7 @@ with DAG(
 
         allowed_states=["success"],
 
-        failed_states=["failed", "upstream_failed"],
+        failed_states=["failed"],
     )
 
 
@@ -94,9 +94,8 @@ with DAG(
 
         allowed_states=["success"],
 
-        failed_states=["failed", "upstream_failed"],
+        failed_states=["failed"],
     )
-
 
     # ========================================================
     # 3. LABOR STATISTICS INGESTION
@@ -115,7 +114,7 @@ with DAG(
 
         allowed_states=["success"],
 
-        failed_states=["failed", "upstream_failed"],
+        failed_states=["failed"],
     )
 
 
@@ -136,7 +135,7 @@ with DAG(
 
         allowed_states=["success"],
 
-        failed_states=["failed", "upstream_failed"],
+        failed_states=["failed"],
     )
 
 
@@ -157,7 +156,7 @@ with DAG(
 
         allowed_states=["success"],
 
-        failed_states=["failed", "upstream_failed"],
+        failed_states=["failed"],
     )
 
 
@@ -178,7 +177,7 @@ with DAG(
 
         allowed_states=["success"],
 
-        failed_states=["failed", "upstream_failed"],
+        failed_states=["failed"],
     )
 
 
