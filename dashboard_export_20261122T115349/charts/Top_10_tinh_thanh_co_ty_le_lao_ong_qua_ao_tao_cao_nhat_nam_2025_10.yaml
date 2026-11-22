@@ -1,0 +1,125 @@
+slice_name: "Top 10 t\u1EC9nh/th\xE0nh c\xF3 t\u1EF7 l\u1EC7 lao \u0111\u1ED9ng qua\
+  \ \u0111\xE0o t\u1EA1o cao nh\u1EA5t n\u0103m 2025"
+description: null
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_bar
+params:
+  datasource: 7__table
+  viz_type: echarts_timeseries_bar
+  slice_id: 10
+  x_axis: province_name
+  x_axis_sort_asc: true
+  x_axis_sort_series: name
+  x_axis_sort_series_ascending: true
+  metrics:
+  - expressionType: SQL
+    sqlExpression: MAX(trained_labour_rate)
+    column: null
+    aggregate: null
+    datasourceWarning: false
+    hasCustomLabel: true
+    label: "T\u1EF7 l\u1EC7 lao \u0111\u1ED9ng qua \u0111\xE0o t\u1EA1o"
+    optionName: metric_yg5wweeznoj_jjz8ga7cbj9
+  groupby: []
+  adhoc_filters:
+  - clause: WHERE
+    comparator: null
+    datasourceWarning: false
+    expressionType: SQL
+    filterOptionName: filter_0ck08nrjfkx8_cjol4r5lr4
+    isExtra: false
+    isNew: false
+    operator: null
+    sqlExpression: year = 2025
+    subject: null
+  timeseries_limit_metric:
+    aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: false
+    label: MAX(trained_labour_rate)
+    optionName: metric_nfyuon2mpye_roma9509ub8
+    sqlExpression: MAX(trained_labour_rate)
+  order_desc: true
+  row_limit: 10
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  orientation: horizontal
+  x_axis_title: "T\u1EF7 l\u1EC7 lao \u0111\u1ED9ng qua \u0111\xE0o t\u1EA1o (%)"
+  x_axis_title_margin: 100
+  y_axis_title: "T\u1EC9nh/th\xE0nh"
+  y_axis_title_margin: 30
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: lyftColors
+  show_value: true
+  only_total: true
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  y_axis_format: SMART_NUMBER
+  truncateXAxis: true
+  y_axis_bounds:
+  - null
+  - null
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipTimeFormat: smart_date
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: "{\"datasource\":{\"id\":7,\"type\":\"table\"},\"force\":false,\"queries\"\
+  :[{\"filters\":[],\"extras\":{\"having\":\"\",\"where\":\"(year = 2025)\"},\"applied_time_extras\"\
+  :{},\"columns\":[{\"columnType\":\"BASE_AXIS\",\"sqlExpression\":\"province_name\"\
+  ,\"label\":\"province_name\",\"expressionType\":\"SQL\"}],\"metrics\":[{\"expressionType\"\
+  :\"SQL\",\"sqlExpression\":\"MAX(trained_labour_rate)\",\"column\":null,\"aggregate\"\
+  :null,\"datasourceWarning\":false,\"hasCustomLabel\":true,\"label\":\"T\u1EF7 l\u1EC7\
+  \ lao \u0111\u1ED9ng qua \u0111\xE0o t\u1EA1o\",\"optionName\":\"metric_yg5wweeznoj_jjz8ga7cbj9\"\
+  }],\"orderby\":[[{\"aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"\
+  expressionType\":\"SQL\",\"hasCustomLabel\":false,\"label\":\"MAX(trained_labour_rate)\"\
+  ,\"optionName\":\"metric_nfyuon2mpye_roma9509ub8\",\"sqlExpression\":\"MAX(trained_labour_rate)\"\
+  },false]],\"annotation_layers\":[],\"row_limit\":10,\"series_columns\":[],\"series_limit\"\
+  :0,\"series_limit_metric\":{\"aggregate\":null,\"column\":null,\"datasourceWarning\"\
+  :false,\"expressionType\":\"SQL\",\"hasCustomLabel\":false,\"label\":\"MAX(trained_labour_rate)\"\
+  ,\"optionName\":\"metric_nfyuon2mpye_roma9509ub8\",\"sqlExpression\":\"MAX(trained_labour_rate)\"\
+  },\"order_desc\":true,\"url_params\":{},\"custom_params\":{},\"custom_form_data\"\
+  :{},\"time_offsets\":[],\"post_processing\":[{\"operation\":\"pivot\",\"options\"\
+  :{\"index\":[\"province_name\"],\"columns\":[],\"aggregates\":{\"T\u1EF7 l\u1EC7\
+  \ lao \u0111\u1ED9ng qua \u0111\xE0o t\u1EA1o\":{\"operator\":\"mean\"}},\"drop_missing_columns\"\
+  :false}},{\"operation\":\"flatten\"}]}],\"form_data\":{\"datasource\":\"7__table\"\
+  ,\"viz_type\":\"echarts_timeseries_bar\",\"slice_id\":10,\"x_axis\":\"province_name\"\
+  ,\"x_axis_sort_asc\":true,\"x_axis_sort_series\":\"name\",\"x_axis_sort_series_ascending\"\
+  :true,\"metrics\":[{\"expressionType\":\"SQL\",\"sqlExpression\":\"MAX(trained_labour_rate)\"\
+  ,\"column\":null,\"aggregate\":null,\"datasourceWarning\":false,\"hasCustomLabel\"\
+  :true,\"label\":\"T\u1EF7 l\u1EC7 lao \u0111\u1ED9ng qua \u0111\xE0o t\u1EA1o\"\
+  ,\"optionName\":\"metric_yg5wweeznoj_jjz8ga7cbj9\"}],\"groupby\":[],\"adhoc_filters\"\
+  :[{\"clause\":\"WHERE\",\"comparator\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"filterOptionName\":\"filter_0ck08nrjfkx8_cjol4r5lr4\",\"isExtra\":false,\"\
+  isNew\":false,\"operator\":null,\"sqlExpression\":\"year = 2025\",\"subject\":null}],\"\
+  timeseries_limit_metric\":{\"aggregate\":null,\"column\":null,\"datasourceWarning\"\
+  :false,\"expressionType\":\"SQL\",\"hasCustomLabel\":false,\"label\":\"MAX(trained_labour_rate)\"\
+  ,\"optionName\":\"metric_nfyuon2mpye_roma9509ub8\",\"sqlExpression\":\"MAX(trained_labour_rate)\"\
+  },\"order_desc\":true,\"row_limit\":10,\"truncate_metric\":true,\"show_empty_columns\"\
+  :true,\"comparison_type\":\"values\",\"annotation_layers\":[],\"forecastPeriods\"\
+  :10,\"forecastInterval\":0.8,\"orientation\":\"horizontal\",\"x_axis_title\":\"\
+  T\u1EF7 l\u1EC7 lao \u0111\u1ED9ng qua \u0111\xE0o t\u1EA1o (%)\",\"x_axis_title_margin\"\
+  :100,\"y_axis_title\":\"T\u1EC9nh/th\xE0nh\",\"y_axis_title_margin\":30,\"y_axis_title_position\"\
+  :\"Left\",\"sort_series_type\":\"sum\",\"color_scheme\":\"lyftColors\",\"show_value\"\
+  :true,\"only_total\":true,\"show_legend\":true,\"legendType\":\"scroll\",\"legendOrientation\"\
+  :\"top\",\"x_axis_time_format\":\"smart_date\",\"y_axis_format\":\"SMART_NUMBER\"\
+  ,\"truncateXAxis\":true,\"y_axis_bounds\":[null,null],\"rich_tooltip\":true,\"showTooltipTotal\"\
+  :true,\"showTooltipPercentage\":true,\"tooltipTimeFormat\":\"smart_date\",\"extra_form_data\"\
+  :{},\"dashboards\":[1],\"force\":false,\"result_format\":\"json\",\"result_type\"\
+  :\"full\"},\"result_format\":\"json\",\"result_type\":\"full\"}"
+cache_timeout: null
+uuid: b6dc0514-9c8b-43f7-89b6-9b7472b390ec
+version: 1.0.0
+dataset_uuid: 28d01adc-da1b-4402-b3ec-88ad27400d3d

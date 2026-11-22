@@ -1,0 +1,13 @@
+database_name: Trino
+sqlalchemy_uri: trino://superset@trino:8080/delta/economic
+cache_timeout: null
+expose_in_sqllab: true
+allow_run_async: false
+allow_ctas: false
+allow_cvas: false
+allow_dml: false
+allow_file_upload: false
+extra:
+  allows_virtual_table_explore: true
+uuid: 5883dcac-f812-40c0-9d02-2015648ce736
+version: 1.0.0

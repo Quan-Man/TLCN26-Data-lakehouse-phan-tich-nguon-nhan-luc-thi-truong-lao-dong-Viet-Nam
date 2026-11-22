@@ -1,0 +1,74 @@
+table_name: ds_economy_gdp_yearly
+main_dttm_col: null
+description: null
+default_endpoint: null
+offset: 0
+cache_timeout: null
+catalog: delta
+schema: economic
+sql: "\nSELECT\n    CAST(f.date_key / 10000 AS INTEGER) AS year,\n    f.indicator_value\
+  \ AS gdp_value,\n    f.value_status\nFROM delta.economic.fact_economic_statistics\
+  \ f\nJOIN delta.economic.dim_economic_indicator e\n    ON f.indicator_key = e.indicator_key\n\
+  JOIN delta.shared.dim_location l\n    ON f.location_key = l.location_key\nJOIN delta.economic.dim_industry\
+  \ i\n    ON f.industry_key = i.industry_key\nJOIN delta.economic.dim_occupation\
+  \ o\n    ON f.occupation_key = o.occupation_key\nWHERE e.indicator_code = 'gdp_total_value'\n\
+  \  AND l.location_id = 'COUNTRY_VN'\n  AND i.industry_id = 'ALL'\n  AND o.occupation_id\
+  \ = 'NOT_APPLICABLE'\n  AND f.value_status IN ('ACTUAL', 'ESTIMATED')\nORDER BY\
+  \ year;\n"
+params: null
+template_params: null
+filter_select_enabled: true
+fetch_values_predicate: null
+extra: null
+normalize_columns: false
+always_filter_main_dttm: false
+uuid: 21f014c5-496a-4564-912f-d0d46e351ffd
+metrics:
+- metric_name: count
+  verbose_name: COUNT(*)
+  metric_type: count
+  expression: COUNT(*)
+  description: null
+  d3format: null
+  currency: null
+  extra: null
+  warning_text: null
+columns:
+- column_name: gdp_value
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: DECIMAL(24, 6)
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: value_status
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: VARCHAR
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: year
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: INTEGER
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: null
+  python_date_format: null
+  extra: null
+version: 1.0.0
+database_uuid: 5883dcac-f812-40c0-9d02-2015648ce736

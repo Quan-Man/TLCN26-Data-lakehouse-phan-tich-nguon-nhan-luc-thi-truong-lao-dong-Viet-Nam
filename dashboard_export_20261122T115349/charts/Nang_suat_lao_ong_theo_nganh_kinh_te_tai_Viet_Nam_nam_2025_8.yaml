@@ -1,0 +1,128 @@
+slice_name: "N\u0103ng su\u1EA5t lao \u0111\u1ED9ng theo ng\xE0nh kinh t\u1EBF t\u1EA1\
+  i Vi\u1EC7t Nam n\u0103m 2025"
+description: null
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_bar
+params:
+  datasource: 6__table
+  viz_type: echarts_timeseries_bar
+  slice_id: 8
+  x_axis: industry_name
+  x_axis_sort_asc: true
+  x_axis_sort_series: name
+  x_axis_sort_series_ascending: true
+  metrics:
+  - aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: true
+    label: "N\u0103ng su\u1EA5t lao \u0111\u1ED9ng"
+    optionName: metric_ywmvj9t1qfi_88bzs859hfw
+    sqlExpression: MAX(productivity)
+  groupby: []
+  adhoc_filters:
+  - clause: WHERE
+    comparator: null
+    datasourceWarning: false
+    expressionType: SQL
+    filterOptionName: filter_dunhfbmm8yv_a6entkl7par
+    isExtra: false
+    isNew: false
+    operator: null
+    sqlExpression: year = 2025
+    subject: null
+  timeseries_limit_metric:
+    aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: false
+    label: MAX(productivity)
+    optionName: metric_6gs5xdpjxji_vbsypxfkf38
+    sqlExpression: MAX(productivity)
+  order_desc: true
+  row_limit: 50
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  orientation: horizontal
+  x_axis_title: ''
+  x_axis_title_margin: 15
+  y_axis_title: "Ng\xE0nh kinh t\u1EBF"
+  y_axis_title_margin: 50
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: bnbColors
+  show_value: true
+  only_total: true
+  minorTicks: false
+  zoomable: false
+  show_legend: false
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  y_axis_format: SMART_NUMBER
+  truncateXAxis: true
+  y_axis_bounds:
+  - null
+  - null
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipSortByMetric: false
+  tooltipTimeFormat: smart_date
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: "{\"datasource\":{\"id\":6,\"type\":\"table\"},\"force\":false,\"queries\"\
+  :[{\"filters\":[],\"extras\":{\"having\":\"\",\"where\":\"(year = 2025)\"},\"applied_time_extras\"\
+  :{},\"columns\":[{\"columnType\":\"BASE_AXIS\",\"sqlExpression\":\"industry_name\"\
+  ,\"label\":\"industry_name\",\"expressionType\":\"SQL\"}],\"metrics\":[{\"aggregate\"\
+  :null,\"column\":null,\"datasourceWarning\":false,\"expressionType\":\"SQL\",\"\
+  hasCustomLabel\":true,\"label\":\"N\u0103ng su\u1EA5t lao \u0111\u1ED9ng\",\"optionName\"\
+  :\"metric_ywmvj9t1qfi_88bzs859hfw\",\"sqlExpression\":\"MAX(productivity)\"}],\"\
+  orderby\":[[{\"aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"hasCustomLabel\":false,\"label\":\"MAX(productivity)\",\"optionName\"\
+  :\"metric_6gs5xdpjxji_vbsypxfkf38\",\"sqlExpression\":\"MAX(productivity)\"},false]],\"\
+  annotation_layers\":[],\"row_limit\":50,\"series_columns\":[],\"series_limit\":0,\"\
+  series_limit_metric\":{\"aggregate\":null,\"column\":null,\"datasourceWarning\"\
+  :false,\"expressionType\":\"SQL\",\"hasCustomLabel\":false,\"label\":\"MAX(productivity)\"\
+  ,\"optionName\":\"metric_6gs5xdpjxji_vbsypxfkf38\",\"sqlExpression\":\"MAX(productivity)\"\
+  },\"order_desc\":true,\"url_params\":{},\"custom_params\":{},\"custom_form_data\"\
+  :{},\"time_offsets\":[],\"post_processing\":[{\"operation\":\"pivot\",\"options\"\
+  :{\"index\":[\"industry_name\"],\"columns\":[],\"aggregates\":{\"N\u0103ng su\u1EA5\
+  t lao \u0111\u1ED9ng\":{\"operator\":\"mean\"}},\"drop_missing_columns\":false}},{\"\
+  operation\":\"flatten\"}]}],\"form_data\":{\"datasource\":\"6__table\",\"viz_type\"\
+  :\"echarts_timeseries_bar\",\"slice_id\":8,\"x_axis\":\"industry_name\",\"x_axis_sort_asc\"\
+  :true,\"x_axis_sort_series\":\"name\",\"x_axis_sort_series_ascending\":true,\"metrics\"\
+  :[{\"aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"hasCustomLabel\":true,\"label\":\"N\u0103ng su\u1EA5t lao \u0111\u1ED9\
+  ng\",\"optionName\":\"metric_ywmvj9t1qfi_88bzs859hfw\",\"sqlExpression\":\"MAX(productivity)\"\
+  }],\"groupby\":[],\"adhoc_filters\":[{\"clause\":\"WHERE\",\"comparator\":null,\"\
+  datasourceWarning\":false,\"expressionType\":\"SQL\",\"filterOptionName\":\"filter_dunhfbmm8yv_a6entkl7par\"\
+  ,\"isExtra\":false,\"isNew\":false,\"operator\":null,\"sqlExpression\":\"year =\
+  \ 2025\",\"subject\":null}],\"timeseries_limit_metric\":{\"aggregate\":null,\"column\"\
+  :null,\"datasourceWarning\":false,\"expressionType\":\"SQL\",\"hasCustomLabel\"\
+  :false,\"label\":\"MAX(productivity)\",\"optionName\":\"metric_6gs5xdpjxji_vbsypxfkf38\"\
+  ,\"sqlExpression\":\"MAX(productivity)\"},\"order_desc\":true,\"row_limit\":50,\"\
+  truncate_metric\":true,\"show_empty_columns\":true,\"comparison_type\":\"values\"\
+  ,\"annotation_layers\":[],\"forecastPeriods\":10,\"forecastInterval\":0.8,\"orientation\"\
+  :\"horizontal\",\"x_axis_title\":\"\",\"x_axis_title_margin\":15,\"y_axis_title\"\
+  :\"Ng\xE0nh kinh t\u1EBF\",\"y_axis_title_margin\":50,\"y_axis_title_position\"\
+  :\"Left\",\"sort_series_type\":\"sum\",\"color_scheme\":\"bnbColors\",\"show_value\"\
+  :true,\"only_total\":true,\"minorTicks\":false,\"zoomable\":false,\"show_legend\"\
+  :false,\"legendType\":\"scroll\",\"legendOrientation\":\"top\",\"x_axis_time_format\"\
+  :\"smart_date\",\"y_axis_format\":\"SMART_NUMBER\",\"truncateXAxis\":true,\"y_axis_bounds\"\
+  :[null,null],\"rich_tooltip\":true,\"showTooltipTotal\":true,\"showTooltipPercentage\"\
+  :true,\"tooltipSortByMetric\":false,\"tooltipTimeFormat\":\"smart_date\",\"extra_form_data\"\
+  :{},\"dashboards\":[1],\"force\":false,\"result_format\":\"json\",\"result_type\"\
+  :\"full\"},\"result_format\":\"json\",\"result_type\":\"full\"}"
+cache_timeout: null
+uuid: 4c144bbc-b3fd-4890-89bf-43a8039b8766
+version: 1.0.0
+dataset_uuid: cba47197-4e14-4281-bd23-44759fd7c9bb

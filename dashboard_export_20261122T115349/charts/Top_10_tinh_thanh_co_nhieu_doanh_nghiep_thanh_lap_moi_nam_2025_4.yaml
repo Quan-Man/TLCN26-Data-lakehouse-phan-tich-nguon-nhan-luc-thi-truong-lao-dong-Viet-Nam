@@ -1,0 +1,114 @@
+slice_name: "Top 10 t\u1EC9nh/th\xE0nh c\xF3 nhi\u1EC1u doanh nghi\u1EC7p th\xE0nh\
+  \ l\u1EADp m\u1EDBi n\u0103m 2025"
+description: null
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_bar
+params:
+  datasource: 2__table
+  viz_type: echarts_timeseries_bar
+  slice_id: 4
+  x_axis: province_name
+  metrics:
+  - aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: true
+    label: "T\u1ED5ng doanh nghi\u1EC7p th\xE0nh l\u1EADp m\u1EDBi"
+    optionName: metric_gfrqsyyw4up_ee3vxot0vji
+    sqlExpression: SUM(new_enterprises)
+  groupby: []
+  adhoc_filters:
+  - clause: WHERE
+    comparator: null
+    datasourceWarning: false
+    expressionType: SQL
+    filterOptionName: filter_yieyejnzy6_h7u88zo9cvc
+    isExtra: false
+    isNew: false
+    operator: null
+    sqlExpression: year = 2025
+    subject: null
+  timeseries_limit_metric:
+    aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: false
+    label: SUM(new_enterprises)
+    optionName: metric_smjl4mid91d_molngtzh5hn
+    sqlExpression: SUM(new_enterprises)
+  order_desc: true
+  row_limit: 10
+  truncate_metric: true
+  show_empty_columns: true
+  annotation_layers: []
+  orientation: vertical
+  x_axis_title_margin: 15
+  y_axis_title_margin: 15
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: modernSunset
+  show_value: true
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  y_axis_format: SMART_NUMBER
+  truncateXAxis: true
+  y_axis_bounds:
+  - null
+  - null
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipTimeFormat: smart_date
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: "{\"datasource\":{\"id\":2,\"type\":\"table\"},\"force\":false,\"queries\"\
+  :[{\"filters\":[],\"extras\":{\"having\":\"\",\"where\":\"(year = 2025)\"},\"applied_time_extras\"\
+  :{},\"columns\":[{\"columnType\":\"BASE_AXIS\",\"sqlExpression\":\"province_name\"\
+  ,\"label\":\"province_name\",\"expressionType\":\"SQL\"}],\"metrics\":[{\"aggregate\"\
+  :null,\"column\":null,\"datasourceWarning\":false,\"expressionType\":\"SQL\",\"\
+  hasCustomLabel\":true,\"label\":\"T\u1ED5ng doanh nghi\u1EC7p th\xE0nh l\u1EADp\
+  \ m\u1EDBi\",\"optionName\":\"metric_gfrqsyyw4up_ee3vxot0vji\",\"sqlExpression\"\
+  :\"SUM(new_enterprises)\"}],\"orderby\":[[{\"aggregate\":null,\"column\":null,\"\
+  datasourceWarning\":false,\"expressionType\":\"SQL\",\"hasCustomLabel\":false,\"\
+  label\":\"SUM(new_enterprises)\",\"optionName\":\"metric_smjl4mid91d_molngtzh5hn\"\
+  ,\"sqlExpression\":\"SUM(new_enterprises)\"},false]],\"annotation_layers\":[],\"\
+  row_limit\":10,\"series_columns\":[],\"series_limit\":0,\"series_limit_metric\"\
+  :{\"aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"hasCustomLabel\":false,\"label\":\"SUM(new_enterprises)\",\"optionName\"\
+  :\"metric_smjl4mid91d_molngtzh5hn\",\"sqlExpression\":\"SUM(new_enterprises)\"},\"\
+  order_desc\":true,\"url_params\":{},\"custom_params\":{},\"custom_form_data\":{},\"\
+  time_offsets\":[],\"post_processing\":[{\"operation\":\"pivot\",\"options\":{\"\
+  index\":[\"province_name\"],\"columns\":[],\"aggregates\":{\"T\u1ED5ng doanh nghi\u1EC7\
+  p th\xE0nh l\u1EADp m\u1EDBi\":{\"operator\":\"mean\"}},\"drop_missing_columns\"\
+  :false}},{\"operation\":\"flatten\"}]}],\"form_data\":{\"datasource\":\"2__table\"\
+  ,\"viz_type\":\"echarts_timeseries_bar\",\"slice_id\":4,\"x_axis\":\"province_name\"\
+  ,\"metrics\":[{\"aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"\
+  expressionType\":\"SQL\",\"hasCustomLabel\":true,\"label\":\"T\u1ED5ng doanh nghi\u1EC7\
+  p th\xE0nh l\u1EADp m\u1EDBi\",\"optionName\":\"metric_gfrqsyyw4up_ee3vxot0vji\"\
+  ,\"sqlExpression\":\"SUM(new_enterprises)\"}],\"groupby\":[],\"adhoc_filters\":[{\"\
+  clause\":\"WHERE\",\"comparator\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"filterOptionName\":\"filter_yieyejnzy6_h7u88zo9cvc\",\"isExtra\":false,\"\
+  isNew\":false,\"operator\":null,\"sqlExpression\":\"year = 2025\",\"subject\":null}],\"\
+  timeseries_limit_metric\":{\"aggregate\":null,\"column\":null,\"datasourceWarning\"\
+  :false,\"expressionType\":\"SQL\",\"hasCustomLabel\":false,\"label\":\"SUM(new_enterprises)\"\
+  ,\"optionName\":\"metric_smjl4mid91d_molngtzh5hn\",\"sqlExpression\":\"SUM(new_enterprises)\"\
+  },\"order_desc\":true,\"row_limit\":10,\"truncate_metric\":true,\"show_empty_columns\"\
+  :true,\"annotation_layers\":[],\"orientation\":\"vertical\",\"x_axis_title_margin\"\
+  :15,\"y_axis_title_margin\":15,\"y_axis_title_position\":\"Left\",\"sort_series_type\"\
+  :\"sum\",\"color_scheme\":\"modernSunset\",\"show_value\":true,\"show_legend\":true,\"\
+  legendType\":\"scroll\",\"legendOrientation\":\"top\",\"x_axis_time_format\":\"\
+  smart_date\",\"y_axis_format\":\"SMART_NUMBER\",\"truncateXAxis\":true,\"y_axis_bounds\"\
+  :[null,null],\"rich_tooltip\":true,\"showTooltipTotal\":true,\"showTooltipPercentage\"\
+  :true,\"tooltipTimeFormat\":\"smart_date\",\"extra_form_data\":{},\"dashboards\"\
+  :[1],\"force\":false,\"result_format\":\"json\",\"result_type\":\"full\"},\"result_format\"\
+  :\"json\",\"result_type\":\"full\"}"
+cache_timeout: null
+uuid: 20fbf3ff-3b13-4b0f-91a2-d61249f1163c
+version: 1.0.0
+dataset_uuid: 293783b7-ad49-4678-a333-d8e04b79faa5

@@ -1,0 +1,92 @@
+slice_name: "GDP Vi\u1EC7t Nam giai \u0111o\u1EA1n 2015\u20132025"
+description: null
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_line
+params:
+  datasource: 1__table
+  viz_type: echarts_timeseries_line
+  slice_id: 1
+  x_axis: year
+  xAxisForceCategorical: false
+  x_axis_sort_asc: true
+  x_axis_sort_series: name
+  x_axis_sort_series_ascending: true
+  metrics:
+  - aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: true
+    label: GDP
+    optionName: metric_a9y1eirkzi_qkpwy630q0k
+    sqlExpression: MAX(gdp_value)
+  groupby: []
+  adhoc_filters: []
+  order_desc: true
+  row_limit: 10000
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  x_axis_title: "N\u0103m"
+  x_axis_title_margin: 30
+  y_axis_title: "GDP (T\u1EF7 \u0111\u1ED3ng)"
+  y_axis_title_margin: 50
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: supersetColors
+  seriesType: line
+  show_value: true
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipSortByMetric: true
+  tooltipTimeFormat: smart_date
+  y_axis_format: SMART_NUMBER
+  truncateXAxis: true
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: "{\"datasource\":{\"id\":1,\"type\":\"table\"},\"force\":false,\"queries\"\
+  :[{\"filters\":[],\"extras\":{\"having\":\"\",\"where\":\"\"},\"applied_time_extras\"\
+  :{},\"columns\":[{\"columnType\":\"BASE_AXIS\",\"sqlExpression\":\"year\",\"label\"\
+  :\"year\",\"expressionType\":\"SQL\"}],\"metrics\":[{\"aggregate\":null,\"column\"\
+  :null,\"datasourceWarning\":false,\"expressionType\":\"SQL\",\"hasCustomLabel\"\
+  :true,\"label\":\"GDP\",\"optionName\":\"metric_a9y1eirkzi_qkpwy630q0k\",\"sqlExpression\"\
+  :\"MAX(gdp_value)\"}],\"orderby\":[[{\"aggregate\":null,\"column\":null,\"datasourceWarning\"\
+  :false,\"expressionType\":\"SQL\",\"hasCustomLabel\":true,\"label\":\"GDP\",\"optionName\"\
+  :\"metric_a9y1eirkzi_qkpwy630q0k\",\"sqlExpression\":\"MAX(gdp_value)\"},false]],\"\
+  annotation_layers\":[],\"row_limit\":10000,\"series_columns\":[],\"series_limit\"\
+  :0,\"order_desc\":true,\"url_params\":{},\"custom_params\":{},\"custom_form_data\"\
+  :{},\"time_offsets\":[],\"post_processing\":[{\"operation\":\"pivot\",\"options\"\
+  :{\"index\":[\"year\"],\"columns\":[],\"aggregates\":{\"GDP\":{\"operator\":\"mean\"\
+  }},\"drop_missing_columns\":false}},{\"operation\":\"flatten\"}]}],\"form_data\"\
+  :{\"datasource\":\"1__table\",\"viz_type\":\"echarts_timeseries_line\",\"slice_id\"\
+  :1,\"x_axis\":\"year\",\"xAxisForceCategorical\":false,\"x_axis_sort_asc\":true,\"\
+  x_axis_sort_series\":\"name\",\"x_axis_sort_series_ascending\":true,\"metrics\"\
+  :[{\"aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"hasCustomLabel\":true,\"label\":\"GDP\",\"optionName\":\"metric_a9y1eirkzi_qkpwy630q0k\"\
+  ,\"sqlExpression\":\"MAX(gdp_value)\"}],\"groupby\":[],\"adhoc_filters\":[],\"order_desc\"\
+  :true,\"row_limit\":10000,\"truncate_metric\":true,\"show_empty_columns\":true,\"\
+  comparison_type\":\"values\",\"annotation_layers\":[],\"forecastPeriods\":10,\"\
+  forecastInterval\":0.8,\"x_axis_title\":\"N\u0103m\",\"x_axis_title_margin\":30,\"\
+  y_axis_title\":\"GDP (T\u1EF7 \u0111\u1ED3ng)\",\"y_axis_title_margin\":50,\"y_axis_title_position\"\
+  :\"Left\",\"sort_series_type\":\"sum\",\"color_scheme\":\"supersetColors\",\"seriesType\"\
+  :\"line\",\"show_value\":true,\"show_legend\":true,\"legendType\":\"scroll\",\"\
+  legendOrientation\":\"top\",\"x_axis_time_format\":\"smart_date\",\"rich_tooltip\"\
+  :true,\"showTooltipTotal\":true,\"showTooltipPercentage\":true,\"tooltipSortByMetric\"\
+  :true,\"tooltipTimeFormat\":\"smart_date\",\"y_axis_format\":\"SMART_NUMBER\",\"\
+  truncateXAxis\":true,\"extra_form_data\":{},\"dashboards\":[1],\"force\":false,\"\
+  result_format\":\"json\",\"result_type\":\"full\"},\"result_format\":\"json\",\"\
+  result_type\":\"full\"}"
+cache_timeout: null
+uuid: 4a5ce6d6-f0a7-4446-99f8-98967794c5d6
+version: 1.0.0
+dataset_uuid: 21f014c5-496a-4564-912f-d0d46e351ffd

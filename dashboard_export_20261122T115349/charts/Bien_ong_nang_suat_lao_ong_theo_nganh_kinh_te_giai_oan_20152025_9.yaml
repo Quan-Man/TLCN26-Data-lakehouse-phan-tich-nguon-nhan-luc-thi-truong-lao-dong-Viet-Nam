@@ -1,0 +1,74 @@
+slice_name: "Bi\u1EBFn \u0111\u1ED9ng n\u0103ng su\u1EA5t lao \u0111\u1ED9ng theo\
+  \ ng\xE0nh kinh t\u1EBF giai \u0111o\u1EA1n 2015\u20132025"
+description: null
+certified_by: null
+certification_details: null
+viz_type: heatmap
+params:
+  datasource: 6__table
+  viz_type: heatmap
+  slice_id: 9
+  all_columns_x:
+    label: "N\u0103m"
+    sqlExpression: year
+    expressionType: SQL
+  all_columns_y:
+    label: "Ng\xE0nh"
+    sqlExpression: industry_name
+    expressionType: SQL
+  metric:
+    expressionType: SQL
+    sqlExpression: MAX(productivity)
+    column: null
+    aggregate: null
+    datasourceWarning: false
+    hasCustomLabel: true
+    label: "N\u0103ng su\u1EA5t"
+    optionName: metric_8mn5odg65if_ud49gitdai
+  adhoc_filters: []
+  row_limit: 10000
+  linear_color_scheme: superset_seq_1
+  xscale_interval: 1
+  yscale_interval: 1
+  canvas_image_rendering: pixelated
+  normalize_across: heatmap
+  left_margin: auto
+  bottom_margin: auto
+  y_axis_bounds:
+  - null
+  - null
+  y_axis_format: SMART_NUMBER
+  time_format: '%d/%m/%Y'
+  sort_x_axis: alpha_asc
+  sort_y_axis: value_asc
+  show_legend: true
+  show_perc: true
+  show_values: true
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: "{\"datasource\":{\"id\":6,\"type\":\"table\"},\"force\":false,\"queries\"\
+  :[{\"filters\":[],\"extras\":{\"having\":\"\",\"where\":\"\"},\"applied_time_extras\"\
+  :{},\"columns\":[],\"metrics\":[{\"expressionType\":\"SQL\",\"sqlExpression\":\"\
+  MAX(productivity)\",\"column\":null,\"aggregate\":null,\"datasourceWarning\":false,\"\
+  hasCustomLabel\":true,\"label\":\"N\u0103ng su\u1EA5t\",\"optionName\":\"metric_8mn5odg65if_ud49gitdai\"\
+  }],\"annotation_layers\":[],\"row_limit\":10000,\"series_limit\":0,\"order_desc\"\
+  :true,\"url_params\":{},\"custom_params\":{},\"custom_form_data\":{}}],\"form_data\"\
+  :{\"datasource\":\"6__table\",\"viz_type\":\"heatmap\",\"slice_id\":9,\"all_columns_x\"\
+  :{\"label\":\"N\u0103m\",\"sqlExpression\":\"year\",\"expressionType\":\"SQL\"},\"\
+  all_columns_y\":{\"label\":\"Ng\xE0nh\",\"sqlExpression\":\"industry_name\",\"expressionType\"\
+  :\"SQL\"},\"metric\":{\"expressionType\":\"SQL\",\"sqlExpression\":\"MAX(productivity)\"\
+  ,\"column\":null,\"aggregate\":null,\"datasourceWarning\":false,\"hasCustomLabel\"\
+  :true,\"label\":\"N\u0103ng su\u1EA5t\",\"optionName\":\"metric_8mn5odg65if_ud49gitdai\"\
+  },\"adhoc_filters\":[],\"row_limit\":10000,\"linear_color_scheme\":\"superset_seq_1\"\
+  ,\"xscale_interval\":1,\"yscale_interval\":1,\"canvas_image_rendering\":\"pixelated\"\
+  ,\"normalize_across\":\"heatmap\",\"left_margin\":\"auto\",\"bottom_margin\":\"\
+  auto\",\"y_axis_bounds\":[null,null],\"y_axis_format\":\"SMART_NUMBER\",\"time_format\"\
+  :\"%d/%m/%Y\",\"sort_x_axis\":\"alpha_asc\",\"sort_y_axis\":\"value_asc\",\"show_legend\"\
+  :true,\"show_perc\":true,\"show_values\":true,\"extra_form_data\":{},\"dashboards\"\
+  :[1],\"force\":false,\"result_format\":\"json\",\"result_type\":\"full\"},\"result_format\"\
+  :\"json\",\"result_type\":\"full\"}"
+cache_timeout: null
+uuid: 6f87045e-3e27-480b-a982-45ddaef28746
+version: 1.0.0
+dataset_uuid: cba47197-4e14-4281-bd23-44759fd7c9bb
