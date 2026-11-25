@@ -56,12 +56,6 @@ def boolean(value):
 
 
 def evaluate(fact, parent, silver, dimensions, *, previous=None, columns=None, issues=(), rules=None):
-    """Read-only checks. skill_count counts only is_required=True, as in the builder.
-
-    ``previous`` is the pre-update fact snapshot, not a fabricated empty input.
-    ``columns`` supplies actual schemas so empty Delta inputs are validated too.
-    All listed checks are mandatory and cannot be downgraded to warnings.
-    """
     rules = rules or load_rules()
     findings = list(issues)
     checks = []
