@@ -664,6 +664,16 @@ def previous_location_rows(spark,path,spec,maximum):
     keep = migrate_location_rows(rows, spec)
     retired = {str(r['location_key']) for r in rows} - {r['location_key'] for r in keep}
     LOG.warning('Legacy dim_location migration: %d retired keys; review dependent facts before replacement. Sample: %s', len(retired), sorted(retired)[:20])
+    # Show the exact legacy records being excluded. This is read-only diagnostics;
+    # it does not authorize a migration or establish whether a Fact references them.
+    for raw in sorted(rows, key=lambda r: str(r.get('location_key') or '')):
+        if str(raw.get('location_key')) not in retired:
+            continue
+        LOG.warning(
+            'RETIRED LOCATION: location_key=%s | location_id=%s | province_name=%s | location_name=%s | location_level=%s | is_current=%s',
+            raw.get('location_key'), raw.get('location_id'), raw.get('province_name'),
+            raw.get('location_name'), raw.get('location_level'), raw.get('is_current')
+        )
     return keep, True
 
 
@@ -705,20 +715,31 @@ def build_shared_dimensions(spark=None, *, sources: Mapping[str, str] | None = N
             prepared[name] = result, schema, path, old
             report[f'dim_{name}'] = {'rows': len(result), 'path': path,
                 'current_members': len(result) - 1 if name == 'location' else sum(r['is_current'] for r in result) - 1}
-        dates = observed_date_rows(observed_silver_dates(spark), academic_start_month)
+        # Append-only calendar: preserve existing date rows and add only new dates.
+        observed_days = observed_silver_dates(spark)
         path, schema = f'{output_root}/dim_date', date_schema()
         old_frame = existing_delta(spark, path, schema)
         old_dates = bounded_rows(old_frame, 100002) if old_frame is not None else None
         if len({r['date_key'] for r in old_dates or []}) != len(old_dates or []):
             raise ValueError('Duplicate existing date keys')
+        if old_dates is None:
+            dates = observed_date_rows(observed_days, academic_start_month)
+        else:
+            old_keys = {r['date_key'] for r in old_dates}
+            if 0 not in old_keys:
+                raise ValueError('Existing dim_date is missing unknown date_key=0')
+            new_days = {day for day in observed_days
+                        if day.year * 10000 + day.month * 100 + day.day not in old_keys}
+            additions = observed_date_rows(new_days, academic_start_month)[1:] if new_days else []
+            dates = [*old_dates, *additions]
         actual = [r['full_date'] for r in dates if r['date_key'] != 0]
         removed_dates = {r['date_key'] for r in old_dates or []} - {r['date_key'] for r in dates}
-        if removed_dates and not (dry_run or replace_shared):
-            raise ValueError('Date removal requires --replace-shared after checking dependent facts')
+        if removed_dates:
+            raise ValueError('Append-only dim_date unexpectedly removed existing dates')
         prepared['date'] = dates, schema, path, old_dates
         report['dim_date'] = {'rows': len(dates), 'path': path,
             'start': min(actual).isoformat() if actual else None,
-            'end': max(actual).isoformat() if actual else None, 'removed_keys': len(removed_dates)}
+            'end': max(actual).isoformat() if actual else None, 'removed_keys': 0}
         for name, (rows, schema, path, previous) in prepared.items():
             if name != 'location':
                 continue

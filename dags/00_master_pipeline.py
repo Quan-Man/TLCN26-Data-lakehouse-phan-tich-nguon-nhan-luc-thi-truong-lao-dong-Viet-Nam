@@ -13,7 +13,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 LOCAL_TZ = pendulum.timezone("Asia/Ho_Chi_Minh")
 
 default_args = {
-    "owner": "data-engineering-team",
+    "owner": "tlcn2026-nhom3",
     "depends_on_past": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
@@ -63,7 +63,7 @@ with DAG(
     job_market_ingestion = TriggerDagRunOperator(
         task_id="trigger_job_market_ingestion",
 
-        trigger_dag_id="job_market_ingestion",
+        trigger_dag_id="01_job_market_ingestion",
 
         wait_for_completion=True,
 
@@ -84,7 +84,7 @@ with DAG(
     education_ingestion = TriggerDagRunOperator(
         task_id="trigger_education_ingestion",
 
-        trigger_dag_id="education_ingestion",
+        trigger_dag_id="02_education_ingestion",
 
         wait_for_completion=True,
 
@@ -97,7 +97,6 @@ with DAG(
         failed_states=["failed"],
     )
 
-
     # ========================================================
     # 3. LABOR STATISTICS INGESTION
     # ========================================================
@@ -105,7 +104,7 @@ with DAG(
     labor_statistics_ingestion = TriggerDagRunOperator(
         task_id="trigger_labor_statistics_ingestion",
 
-        trigger_dag_id="labor_statistics_ingestion",
+        trigger_dag_id="03_labor_statistics_ingestion",
 
         wait_for_completion=True,
 
@@ -126,7 +125,7 @@ with DAG(
     silver_transformation = TriggerDagRunOperator(
         task_id="trigger_silver_transformation",
 
-        trigger_dag_id="silver_transformation",
+        trigger_dag_id="04_silver_transformation",
 
         wait_for_completion=True,
 
@@ -147,7 +146,7 @@ with DAG(
     gold_analytics = TriggerDagRunOperator(
         task_id="trigger_gold_analytics",
 
-        trigger_dag_id="gold_analytics",
+        trigger_dag_id="05_gold_analytics",
 
         wait_for_completion=True,
 
@@ -168,7 +167,7 @@ with DAG(
     data_quality = TriggerDagRunOperator(
         task_id="trigger_data_quality",
 
-        trigger_dag_id="data_quality",
+        trigger_dag_id="06_data_quality",
 
         wait_for_completion=True,
 

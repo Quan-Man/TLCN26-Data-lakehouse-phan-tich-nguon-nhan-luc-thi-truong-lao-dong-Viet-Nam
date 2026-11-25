@@ -1,0 +1,118 @@
+slice_name: "L\u1EF1c l\u01B0\u1EE3ng lao \u0111\u1ED9ng v\xE0 lao \u0111\u1ED9ng\
+  \ c\xF3 vi\u1EC7c l\xE0m (2015\u20132025)"
+description: null
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_line
+params:
+  datasource: 4__table
+  viz_type: echarts_timeseries_line
+  slice_id: 6
+  x_axis: year
+  x_axis_sort_asc: true
+  x_axis_sort_series: name
+  x_axis_sort_series_ascending: true
+  metrics:
+  - aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: true
+    label: "L\u1EF1c l\u01B0\u1EE3ng lao \u0111\u1ED9ng"
+    optionName: metric_rz21rkz04a_knhi1n9a0w
+    sqlExpression: MAX(labour_force_million)
+  - aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: true
+    label: "Lao \u0111\u1ED9ng c\xF3 vi\u1EC7c l\xE0m"
+    optionName: metric_facwtaqhxy5_7h2q58fqjt
+    sqlExpression: MAX(employment_million)
+  groupby: []
+  adhoc_filters: []
+  order_desc: true
+  row_limit: 10000
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  x_axis_title: "N\u0103m"
+  x_axis_title_margin: 30
+  y_axis_title: "S\u1ED1 lao \u0111\u1ED9ng (Tri\u1EC7u ng\u01B0\u1EDDi)"
+  y_axis_title_margin: 50
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: supersetAndPresetColors
+  seriesType: line
+  show_value: false
+  only_total: true
+  opacity: 0.2
+  markerEnabled: true
+  markerSize: 6
+  zoomable: false
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipTimeFormat: smart_date
+  y_axis_format: SMART_NUMBER
+  truncateXAxis: true
+  y_axis_bounds:
+  - null
+  - null
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: "{\"datasource\":{\"id\":4,\"type\":\"table\"},\"force\":false,\"queries\"\
+  :[{\"filters\":[],\"extras\":{\"having\":\"\",\"where\":\"\"},\"applied_time_extras\"\
+  :{},\"columns\":[{\"columnType\":\"BASE_AXIS\",\"sqlExpression\":\"year\",\"label\"\
+  :\"year\",\"expressionType\":\"SQL\"}],\"metrics\":[{\"aggregate\":null,\"column\"\
+  :null,\"datasourceWarning\":false,\"expressionType\":\"SQL\",\"hasCustomLabel\"\
+  :true,\"label\":\"L\u1EF1c l\u01B0\u1EE3ng lao \u0111\u1ED9ng\",\"optionName\":\"\
+  metric_rz21rkz04a_knhi1n9a0w\",\"sqlExpression\":\"MAX(labour_force_million)\"},{\"\
+  aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"hasCustomLabel\":true,\"label\":\"Lao \u0111\u1ED9ng c\xF3 vi\u1EC7c\
+  \ l\xE0m\",\"optionName\":\"metric_facwtaqhxy5_7h2q58fqjt\",\"sqlExpression\":\"\
+  MAX(employment_million)\"}],\"orderby\":[[{\"aggregate\":null,\"column\":null,\"\
+  datasourceWarning\":false,\"expressionType\":\"SQL\",\"hasCustomLabel\":true,\"\
+  label\":\"L\u1EF1c l\u01B0\u1EE3ng lao \u0111\u1ED9ng\",\"optionName\":\"metric_rz21rkz04a_knhi1n9a0w\"\
+  ,\"sqlExpression\":\"MAX(labour_force_million)\"},false]],\"annotation_layers\"\
+  :[],\"row_limit\":10000,\"series_columns\":[],\"series_limit\":0,\"order_desc\"\
+  :true,\"url_params\":{},\"custom_params\":{},\"custom_form_data\":{},\"time_offsets\"\
+  :[],\"post_processing\":[{\"operation\":\"pivot\",\"options\":{\"index\":[\"year\"\
+  ],\"columns\":[],\"aggregates\":{\"L\u1EF1c l\u01B0\u1EE3ng lao \u0111\u1ED9ng\"\
+  :{\"operator\":\"mean\"},\"Lao \u0111\u1ED9ng c\xF3 vi\u1EC7c l\xE0m\":{\"operator\"\
+  :\"mean\"}},\"drop_missing_columns\":false}},{\"operation\":\"flatten\"}]}],\"form_data\"\
+  :{\"datasource\":\"4__table\",\"viz_type\":\"echarts_timeseries_line\",\"slice_id\"\
+  :6,\"x_axis\":\"year\",\"x_axis_sort_asc\":true,\"x_axis_sort_series\":\"name\"\
+  ,\"x_axis_sort_series_ascending\":true,\"metrics\":[{\"aggregate\":null,\"column\"\
+  :null,\"datasourceWarning\":false,\"expressionType\":\"SQL\",\"hasCustomLabel\"\
+  :true,\"label\":\"L\u1EF1c l\u01B0\u1EE3ng lao \u0111\u1ED9ng\",\"optionName\":\"\
+  metric_rz21rkz04a_knhi1n9a0w\",\"sqlExpression\":\"MAX(labour_force_million)\"},{\"\
+  aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"hasCustomLabel\":true,\"label\":\"Lao \u0111\u1ED9ng c\xF3 vi\u1EC7c\
+  \ l\xE0m\",\"optionName\":\"metric_facwtaqhxy5_7h2q58fqjt\",\"sqlExpression\":\"\
+  MAX(employment_million)\"}],\"groupby\":[],\"adhoc_filters\":[],\"order_desc\":true,\"\
+  row_limit\":10000,\"truncate_metric\":true,\"show_empty_columns\":true,\"comparison_type\"\
+  :\"values\",\"annotation_layers\":[],\"forecastPeriods\":10,\"forecastInterval\"\
+  :0.8,\"x_axis_title\":\"N\u0103m\",\"x_axis_title_margin\":30,\"y_axis_title\":\"\
+  S\u1ED1 lao \u0111\u1ED9ng (Tri\u1EC7u ng\u01B0\u1EDDi)\",\"y_axis_title_margin\"\
+  :50,\"y_axis_title_position\":\"Left\",\"sort_series_type\":\"sum\",\"color_scheme\"\
+  :\"supersetAndPresetColors\",\"seriesType\":\"line\",\"show_value\":false,\"only_total\"\
+  :true,\"opacity\":0.2,\"markerEnabled\":true,\"markerSize\":6,\"zoomable\":false,\"\
+  show_legend\":true,\"legendType\":\"scroll\",\"legendOrientation\":\"top\",\"x_axis_time_format\"\
+  :\"smart_date\",\"rich_tooltip\":true,\"showTooltipTotal\":true,\"showTooltipPercentage\"\
+  :true,\"tooltipTimeFormat\":\"smart_date\",\"y_axis_format\":\"SMART_NUMBER\",\"\
+  truncateXAxis\":true,\"y_axis_bounds\":[null,null],\"extra_form_data\":{},\"dashboards\"\
+  :[1],\"force\":false,\"result_format\":\"json\",\"result_type\":\"full\"},\"result_format\"\
+  :\"json\",\"result_type\":\"full\"}"
+cache_timeout: null
+uuid: 27ea0a4d-d1d8-42a7-b263-4c8ca737405d
+version: 1.0.0
+dataset_uuid: 54556f61-868a-44ca-b08a-0a5a48aaf494

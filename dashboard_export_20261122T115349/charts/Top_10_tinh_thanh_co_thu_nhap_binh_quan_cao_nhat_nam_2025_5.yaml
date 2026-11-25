@@ -1,0 +1,123 @@
+slice_name: "Top 10 t\u1EC9nh/th\xE0nh c\xF3 thu nh\u1EADp b\xECnh qu\xE2n cao nh\u1EA5\
+  t n\u0103m 2025"
+description: null
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_bar
+params:
+  datasource: 3__table
+  viz_type: echarts_timeseries_bar
+  slice_id: 5
+  x_axis: province_name
+  x_axis_sort_asc: true
+  x_axis_sort_series: name
+  x_axis_sort_series_ascending: true
+  metrics:
+  - expressionType: SQL
+    sqlExpression: MAX(average_income)
+    column: null
+    aggregate: null
+    datasourceWarning: false
+    hasCustomLabel: true
+    label: "Thu nh\u1EADp b\xECnh qu\xE2n"
+    optionName: metric_fb2cu0xvvzs_9ymrhqv1pf9
+  groupby: []
+  adhoc_filters:
+  - clause: WHERE
+    comparator: null
+    datasourceWarning: false
+    expressionType: SQL
+    filterOptionName: filter_q90d0yzztzd_42qoy05x4u4
+    isExtra: false
+    isNew: false
+    operator: null
+    sqlExpression: year = 2025
+    subject: null
+  timeseries_limit_metric:
+    aggregate: null
+    column: null
+    datasourceWarning: false
+    expressionType: SQL
+    hasCustomLabel: false
+    label: MAX(average_income)
+    optionName: metric_prkkkvtf3ic_uexmd34b2uh
+    sqlExpression: MAX(average_income)
+  order_desc: true
+  row_limit: 10
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  orientation: vertical
+  x_axis_title_margin: 15
+  y_axis_title: "Thu nh\u1EADp b\xECnh qu\xE2n (Ngh\xECn \u0111\u1ED3ng/th\xE1ng)"
+  y_axis_title_margin: 50
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: presetColors
+  show_value: true
+  only_total: true
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  y_axis_format: SMART_NUMBER
+  truncateXAxis: true
+  y_axis_bounds:
+  - null
+  - null
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipTimeFormat: smart_date
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: "{\"datasource\":{\"id\":3,\"type\":\"table\"},\"force\":false,\"queries\"\
+  :[{\"filters\":[],\"extras\":{\"having\":\"\",\"where\":\"(year = 2025)\"},\"applied_time_extras\"\
+  :{},\"columns\":[{\"columnType\":\"BASE_AXIS\",\"sqlExpression\":\"province_name\"\
+  ,\"label\":\"province_name\",\"expressionType\":\"SQL\"}],\"metrics\":[{\"expressionType\"\
+  :\"SQL\",\"sqlExpression\":\"MAX(average_income)\",\"column\":null,\"aggregate\"\
+  :null,\"datasourceWarning\":false,\"hasCustomLabel\":true,\"label\":\"Thu nh\u1EAD\
+  p b\xECnh qu\xE2n\",\"optionName\":\"metric_fb2cu0xvvzs_9ymrhqv1pf9\"}],\"orderby\"\
+  :[[{\"aggregate\":null,\"column\":null,\"datasourceWarning\":false,\"expressionType\"\
+  :\"SQL\",\"hasCustomLabel\":false,\"label\":\"MAX(average_income)\",\"optionName\"\
+  :\"metric_prkkkvtf3ic_uexmd34b2uh\",\"sqlExpression\":\"MAX(average_income)\"},false]],\"\
+  annotation_layers\":[],\"row_limit\":10,\"series_columns\":[],\"series_limit\":0,\"\
+  series_limit_metric\":{\"aggregate\":null,\"column\":null,\"datasourceWarning\"\
+  :false,\"expressionType\":\"SQL\",\"hasCustomLabel\":false,\"label\":\"MAX(average_income)\"\
+  ,\"optionName\":\"metric_prkkkvtf3ic_uexmd34b2uh\",\"sqlExpression\":\"MAX(average_income)\"\
+  },\"order_desc\":true,\"url_params\":{},\"custom_params\":{},\"custom_form_data\"\
+  :{},\"time_offsets\":[],\"post_processing\":[{\"operation\":\"pivot\",\"options\"\
+  :{\"index\":[\"province_name\"],\"columns\":[],\"aggregates\":{\"Thu nh\u1EADp b\xEC\
+  nh qu\xE2n\":{\"operator\":\"mean\"}},\"drop_missing_columns\":false}},{\"operation\"\
+  :\"flatten\"}]}],\"form_data\":{\"datasource\":\"3__table\",\"viz_type\":\"echarts_timeseries_bar\"\
+  ,\"slice_id\":5,\"x_axis\":\"province_name\",\"x_axis_sort_asc\":true,\"x_axis_sort_series\"\
+  :\"name\",\"x_axis_sort_series_ascending\":true,\"metrics\":[{\"expressionType\"\
+  :\"SQL\",\"sqlExpression\":\"MAX(average_income)\",\"column\":null,\"aggregate\"\
+  :null,\"datasourceWarning\":false,\"hasCustomLabel\":true,\"label\":\"Thu nh\u1EAD\
+  p b\xECnh qu\xE2n\",\"optionName\":\"metric_fb2cu0xvvzs_9ymrhqv1pf9\"}],\"groupby\"\
+  :[],\"adhoc_filters\":[{\"clause\":\"WHERE\",\"comparator\":null,\"datasourceWarning\"\
+  :false,\"expressionType\":\"SQL\",\"filterOptionName\":\"filter_q90d0yzztzd_42qoy05x4u4\"\
+  ,\"isExtra\":false,\"isNew\":false,\"operator\":null,\"sqlExpression\":\"year =\
+  \ 2025\",\"subject\":null}],\"timeseries_limit_metric\":{\"aggregate\":null,\"column\"\
+  :null,\"datasourceWarning\":false,\"expressionType\":\"SQL\",\"hasCustomLabel\"\
+  :false,\"label\":\"MAX(average_income)\",\"optionName\":\"metric_prkkkvtf3ic_uexmd34b2uh\"\
+  ,\"sqlExpression\":\"MAX(average_income)\"},\"order_desc\":true,\"row_limit\":10,\"\
+  truncate_metric\":true,\"show_empty_columns\":true,\"comparison_type\":\"values\"\
+  ,\"annotation_layers\":[],\"forecastPeriods\":10,\"forecastInterval\":0.8,\"orientation\"\
+  :\"vertical\",\"x_axis_title_margin\":15,\"y_axis_title\":\"Thu nh\u1EADp b\xEC\
+  nh qu\xE2n (Ngh\xECn \u0111\u1ED3ng/th\xE1ng)\",\"y_axis_title_margin\":50,\"y_axis_title_position\"\
+  :\"Left\",\"sort_series_type\":\"sum\",\"color_scheme\":\"presetColors\",\"show_value\"\
+  :true,\"only_total\":true,\"show_legend\":true,\"legendType\":\"scroll\",\"legendOrientation\"\
+  :\"top\",\"x_axis_time_format\":\"smart_date\",\"y_axis_format\":\"SMART_NUMBER\"\
+  ,\"truncateXAxis\":true,\"y_axis_bounds\":[null,null],\"rich_tooltip\":true,\"showTooltipTotal\"\
+  :true,\"showTooltipPercentage\":true,\"tooltipTimeFormat\":\"smart_date\",\"extra_form_data\"\
+  :{},\"dashboards\":[1],\"force\":false,\"result_format\":\"json\",\"result_type\"\
+  :\"full\"},\"result_format\":\"json\",\"result_type\":\"full\"}"
+cache_timeout: null
+uuid: 095f1b49-e14e-4f67-90e2-664bf05482ea
+version: 1.0.0
+dataset_uuid: a0eff353-f034-4c7a-ae30-bdfbf81fef72

@@ -190,7 +190,18 @@ def build(dry_run=False,replace_schema=False):
             if fs.exists(hp):
                 old=spark.read.format('delta').load(path)
                 if _same_published_data(df,old): continue
-                if {f.name:f.dataType for f in old.schema}!={f.name:f.dataType for f in df.schema} and not (replace_schema or dry_run): raise ValueError(f'{name}: run --dry-run then --replace-schema after backup')
+                old_fields = {f.name: f.dataType.simpleString() for f in old.schema}
+                new_fields = {f.name: f.dataType.simpleString() for f in df.schema}
+                if old_fields != new_fields:
+                    removed_cols = {k: v for k, v in old_fields.items() if k not in new_fields}
+                    added_cols = {k: v for k, v in new_fields.items() if k not in old_fields}
+                    changed_types = {k: {'old': old_fields[k], 'new': new_fields[k]}
+                                     for k in old_fields.keys() & new_fields.keys()
+                                     if old_fields[k] != new_fields[k]}
+                    print(f'[SCHEMA DIFF] {name}: old_only={removed_cols}; '
+                          f'new_only={added_cols}; type_changes={changed_types}', flush=True)
+                    if not (replace_schema or dry_run):
+                        raise ValueError(f'{name}: run --dry-run then --replace-schema after backup')
             writes.append((path,df))
         if not dry_run:
             for path,df in writes: df.write.format('delta').mode('overwrite').option('overwriteSchema','true').save(path)
