@@ -22,9 +22,11 @@ RUN python -m pip install --no-cache-dir --no-deps \
         delta-spark==3.3.0 \
         py4j==0.10.9.7
 
-# MinIO Python SDK
+# MinIO and Trino Python clients
 RUN python -m pip install --no-cache-dir \
-        minio==7.2.20
+        minio==7.2.20 \
+        trino \
+        pyarrow
 
 # Download Spark and Delta Lake JARs
 COPY --chown=airflow:root \
