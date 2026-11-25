@@ -45,15 +45,9 @@ COPY --chown=airflow:root \
     scripts/ensure_buckets.py \
     /opt/airflow/scripts/ensure_buckets.py
 
-# Airflow bootstrap
 COPY --chown=airflow:root \
-    docker/airflow/bootstrap.sh \
-    /opt/airflow/bootstrap.sh
-
-# MinIO bucket initialization script
-COPY --chown=airflow:root \
-    scripts/ensure_buckets.py \
-    /opt/airflow/scripts/ensure_buckets.py
+    scripts/register_delta_tables.py \
+    /opt/airflow/scripts/register_delta_tables.py
 
 USER root
 

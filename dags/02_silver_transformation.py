@@ -83,6 +83,9 @@ with DAG(
         ),
     )
 
-    ([build_job_silver >> check_job_silver]
-    >> [build_education_silver, check_education_silver]
-    >> [build_economic_silver, check_economic_silver])
+    # TASK DEPENDENCIES
+    build_job_silver >> check_job_silver
+    check_job_silver >> build_education_silver
+    build_education_silver >> check_education_silver
+    check_education_silver >> build_economic_silver
+    build_economic_silver >> check_economic_silver

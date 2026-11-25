@@ -874,20 +874,43 @@ def run_pipeline(bronze_dir=ROOT/'data/bronze/job_posting', output_dir=ROOT/'dat
         stage = Path(tempfile.mkdtemp(prefix='.pending_',dir=snapshots))
         tables = {name:[] for name in COMMON}
         company_versions,successful = {},[]
+
         for job_id,envelope in sorted(winners.items()):
             try:
-                job,company,locs,job_skills = transform_job(envelope,now,skills,locations)
+                job,company,locs,job_skills = transform_job(
+                    envelope,now,skills,locations
+                )
             except (ValueError,TypeError,KeyError) as exc:
-                quarantine.append(dict(reason=str(exc),bronze_record=envelope))
+                quarantine.append(dict(
+                    reason=str(exc),
+                    bronze_record=envelope
+                ))
                 continue
+
+            # Quarantine tin có ngày hết hạn trước ngày đăng.
+            posted_date = job.get('posted_date')
+            expiration_date = job.get('expiration_date')
+
+            if posted_date and expiration_date and expiration_date < posted_date:
+                quarantine.append(dict(
+                    reason='EXPIRATION_BEFORE_POSTED',
+                    posted_date=posted_date,
+                    expiration_date=expiration_date,
+                    bronze_record=envelope,
+                    silver_record=job
+                ))
+                continue
+
             tables['job_postings'].append(job)
             tables['job_locations'].extend(locs)
             tables['job_skills'].extend(job_skills)
             successful.append(envelope)
+
             if company:
                 cid,rank = company['company_id'],(version_rank(envelope),job_id)
                 if cid not in company_versions or rank > company_versions[cid][0]:
                     company_versions[cid] = (rank,company)
+
         tables['companies'] = [company_versions[cid][1] for cid in sorted(company_versions)]
         if not tables['job_postings']: raise ValueError('Không có tin hợp lệ; giữ nguyên latest trước đó')
         validate_tables(tables,set(skills.skills),set(locations.locations))

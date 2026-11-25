@@ -79,7 +79,7 @@ with DAG(
         task_id="check_jobs_gold",
         bash_command=(
             "cd /opt/airflow && "
-            "python -m jobs.dq.check_jobs_gold"
+            "python -m jobs.dq.check_job_skill_gold"
         ),
     )
 
@@ -130,9 +130,14 @@ with DAG(
     )
 
     (
-    build_shared_dimensions 
-    >> [build_fact_job, build_job_skill] >> build_bridge_job >> check_jobs_gold
-    >> build_education_gold >> check_education_gold
-    >> build_economy_gold >> check_economy_gold
+    build_shared_dimensions
+    >> build_fact_job
+    >> build_job_skill
+    >> build_bridge_job
+    >> check_jobs_gold
+    >> build_education_gold
+    >> check_education_gold
+    >> build_economy_gold
+    >> check_economy_gold
     >> register_trino
     )

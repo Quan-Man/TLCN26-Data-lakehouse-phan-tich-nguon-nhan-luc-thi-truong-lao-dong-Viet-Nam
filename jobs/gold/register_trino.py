@@ -26,8 +26,8 @@ DEFAULT_SCHEMAS = {'shared': 'shared', 'jobs': 'jobs',
 ROOT_ENVS = {'shared': 'SHARED_GOLD_ROOT', 'jobs': 'JOBS_GOLD_ROOT',
              'education': 'EDUCATION_GOLD_PREFIX', 'economy': 'ECONOMY_GOLD_ROOT'}
 DOMAIN_TABLES = {
-    'shared': ('dim_date', 'dim_location', 'dim_skill'),
-    'jobs': ('dim_company', 'fact_job_posting', 'fact_job_skill', 'bridge_job_location'),
+    'shared': ('dim_date', 'dim_location'),
+    'jobs': ('dim_company', 'dim_skill', 'fact_job_posting', 'fact_job_skill', 'bridge_job_location'),
     'education': ('dim_university', 'dim_major', 'dim_program', 'fact_admission'),
     'economy': ('dim_industry', 'dim_occupation', 'dim_economic_indicator', 'fact_economic_statistics'),
 }
@@ -126,9 +126,6 @@ def build_plan(config=None, *, domains=None, catalog=None, roots=None, schemas=N
     for group in ('jobs', 'education', 'economy'):
         if group not in selected:
             continue
-        if group == 'jobs':
-            for name in DOMAIN_TABLES['shared']:
-                add(group, name, owner='shared')
         for name in DOMAIN_TABLES[group]:
             add(group, name)
     if len({t.label for t in plan}) != len(plan):

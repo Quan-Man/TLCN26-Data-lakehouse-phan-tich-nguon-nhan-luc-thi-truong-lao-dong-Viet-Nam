@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
 import json
 import os
 from pathlib import Path
@@ -19,16 +18,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / 'jobs') not in sys.path:
     sys.path.insert(0, str(ROOT / 'jobs'))
 
-from common.dq_rules import blank, load_rules, number
+from common.dq_rules import blank, load_rules
 
 CONTEXT = {'date_key': 'posted_date_key', 'location_key': 'location_key',
-           'occupation_key': 'occupation_key', 'industry_key': 'industry_key',
            'reference_date': 'reference_date', 'skill_source_as_of': 'skill_count_as_of'}
-CHILD_COLUMNS = {'job_fact_key', 'skill_key', 'job_id', 'skill_id', 'is_required',
-                 'confidence_score', 'years_required', *CONTEXT}
-PARENT_COLUMNS = {'job_fact_key', 'job_id', 'skill_count', 'seen_in_silver',
+CHILD_COLUMNS = {'job_fact_key', 'skill_key', 'job_id', 'skill_id', *CONTEXT}
+PARENT_COLUMNS = {'job_fact_key', 'job_id', 'seen_in_silver',
                   'dimension_date_policy', 'posted_date', *CONTEXT.values()}
-DIMENSIONS = ('skill', 'date', 'location', 'occupation', 'industry')
+DIMENSIONS = ('skill', 'date', 'location')
 
 
 def required_columns():
@@ -56,6 +53,7 @@ def boolean(value):
 
 
 def evaluate(fact, parent, silver, dimensions, *, previous=None, columns=None, issues=(), rules=None):
+    print('[DQ] Loading rules.yml and table catalog', flush=True)
     rules = rules or load_rules()
     findings = list(issues)
     checks = []
@@ -94,7 +92,6 @@ def evaluate(fact, parent, silver, dimensions, *, previous=None, columns=None, i
     record('NULL_PARENT_IDENTITY', sum(any(blank(row.get(k)) for k in ('job_fact_key', 'job_id')) for row in parent))
     record('NULL_SILVER_IDENTITY', sum(any(blank(row.get(k)) for k in ('job_id', 'skill_id')) for row in silver))
     record('PARENT_SNAPSHOT_FLAGS', sum(type(row['seen_in_silver']) is not bool or
-        type(row['skill_count']) is not int or row['skill_count'] < 0 or
         row['dimension_date_policy'] not in {'posted', 'as_of'} for row in parent))
     by_job = {row['job_fact_key']: row for row in parent}
     by_id = {row['job_id']: row for row in parent}
@@ -129,20 +126,6 @@ def evaluate(fact, parent, silver, dimensions, *, previous=None, columns=None, i
     record('SKILL_ID_KEY_MAPPING', invalid_mapping)
     record('SKILL_EFFECTIVE_VERSION', invalid_version)
 
-    for field, maximum in [('confidence_score', Decimal(1)), ('years_required', None)]:
-        invalid = 0
-        for row in fact:
-            if row[field] is None:
-                continue
-            try:
-                value = number(row[field])
-                invalid += value < 0 or (maximum is not None and value > maximum)
-            except (ValueError, TypeError, InvalidOperation):
-                invalid += 1
-        record('RANGE:' + field, invalid)
-    record('TYPE:is_required', sum(row['is_required'] is not None and type(row['is_required']) is not bool
-                                   for row in fact))
-
     seen = {row['job_id'] for row in parent if row['seen_in_silver'] is True}
     retained = {row['job_id'] for row in parent if row['seen_in_silver'] is False}
     expected = {(row['job_id'], row['skill_id']) for row in silver if row['job_id'] in seen}
@@ -162,11 +145,6 @@ def evaluate(fact, parent, silver, dimensions, *, previous=None, columns=None, i
     record('SILVER_REQUIRED_FLAG', invalid_flags)
     # Repeated identical Silver evidence is canonicalized by the builder too.
     record('SILVER_CONFLICTING_PAIR', sum(len(values) > 1 for values in flag_sets.values()))
-    record('REQUIRED_FLAG_MISMATCH', sum(row['is_required'] != flags.get((row['job_id'], row['skill_id']))
-        for row in fact if row['job_id'] in seen and (row['job_id'], row['skill_id']) in expected))
-    counts = Counter(row['job_fact_key'] for row in fact if row['is_required'] is True)
-    record('SKILL_COUNT', sum(row['skill_count'] != counts[row['job_fact_key']] for row in parent))
-
     deletion = {'baseline_available': previous is not None, 'obsolete_pairs': None, 'remaining_pairs': None}
     if previous is not None:
         old = {(row['job_id'], row['skill_id']) for row in previous}
@@ -226,17 +204,33 @@ def check_frames(fact, parent, silver, dimensions, *, previous=None, max_rows=10
 
 def check(spark, *, silver_root=None, shared_root=None, gold_root=None,
           previous_version=None, max_rows=100000):
-    from gold.build_fact_job_skill import read_snapshot, assert_version
+    from gold.build_fact_job_skill import read_snapshot, assert_version, prepare_evidence
+    from gold import build_jobs_gold as jobs
+    from gold import build_shared_dimensions as shared
     from delta.tables import DeltaTable
     silver_root = (silver_root or os.getenv('JOBS_SILVER_ROOT', 's3a://silver/jobs')).rstrip('/')
     shared_root = (shared_root or os.getenv('SHARED_GOLD_ROOT', 's3a://gold/shared')).rstrip('/')
     gold_root = (gold_root or os.getenv('JOBS_GOLD_ROOT', 's3a://gold/jobs')).rstrip('/')
-    paths = {'fact_job_skill': f'{gold_root}/fact_job_skill', 'fact_job_posting': f'{gold_root}/fact_job_posting',
-             'job_skills': f'{silver_root}/job_skills',
-             **{'dim_' + name: f'{shared_root}/dim_{name}' for name in DIMENSIONS}}
+    silver_path = jobs.resolve_silver_table_path(
+        silver_root, 'job_skills', lambda p: shared.hadoop_exists(spark, p))
+    paths = {
+        'fact_job_skill': f'{gold_root}/fact_job_skill',
+        'fact_job_posting': f'{gold_root}/fact_job_posting',
+        'job_skills': silver_path,
+        'dim_skill': f'{gold_root}/dim_skill',
+        'dim_date': f'{shared_root}/dim_date',
+        'dim_location': f'{shared_root}/dim_location',
+    }
     frames, versions = {}, {}
     for name, path in paths.items():
-        frames[name], versions[path] = read_snapshot(spark, path)
+        print(f'[DQ] Reading {name}: {path}', flush=True)
+        if name == 'job_skills' and path.endswith('.parquet'):
+            frames[name] = spark.read.format('parquet').load(path)
+        else:
+            frames[name], versions[path] = read_snapshot(spark, path)
+        if name == 'job_skills':
+            frames[name] = prepare_evidence(frames[name])
+        print(f'[DQ] Loaded {name}', flush=True)
     path = paths['fact_job_skill']
     current = versions[path]
     if previous_version is None:
@@ -254,7 +248,8 @@ def check(spark, *, silver_root=None, shared_root=None, gold_root=None,
     for input_path, version in versions.items():
         assert_version(spark, input_path, version)
     result.update(input_versions=versions, previous_version=previous_version,
-                  checked_at=datetime.now(timezone.utc).isoformat())
+                  checked_at=datetime.now(timezone.utc).isoformat(),
+                  silver_snapshot_pinned=silver_path in versions)
     return result
 
 
@@ -277,7 +272,8 @@ def main():
     except Exception as exc:
         # Do not echo endpoints, connection strings or Spark exception payloads.
         report = dict(status='failed', publish_allowed=False,
-                      issues=[dict(severity='error', code='DQ_TASK_FAILED', error_type=type(exc).__name__)])
+                      issues=[dict(severity='error', code='DQ_TASK_FAILED', error_type=type(exc).__name__,
+                                   missing_path=exc.filename if isinstance(exc, FileNotFoundError) else None)])
     finally:
         if spark is not None:
             spark.stop()

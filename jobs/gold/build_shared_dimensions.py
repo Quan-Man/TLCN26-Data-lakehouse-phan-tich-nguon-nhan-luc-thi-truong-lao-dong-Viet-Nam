@@ -31,8 +31,8 @@ class DimensionSpec:
 
 
 SPECS = {
-    'location': DimensionSpec('location', 'location_id', 'location_key', 'location_name',
-        ('province_code', 'location_name', 'location_name_normalized', 'location_type', 'country_code'),
+    'location': DimensionSpec('location', 'location_id', 'location_key', 'province_name',
+        ('location_code', 'province_name', 'economic_region', 'location_name_normalized', 'country_code'),
         'location_dictionary.csv'),
     # 'occupation': DimensionSpec('occupation', 'occupation_id', 'occupation_key',
     #     'occupation_name', ('occupation_code', 'occupation_name',
@@ -42,9 +42,11 @@ SPECS = {
     #     'industry_section', 'industry_level', 'parent_industry_code'),
     #     'industry_mapping.csv'),
     'skill': DimensionSpec('skill', 'skill_id', 'skill_key', 'canonical_name',
-        ( 'canonical_name', 'normalized_name', 'skill_type', 'skill_category'),
+        ( 'canonical_name', 'normalized_name', 'skill_type', 'skill_category', 'cluster_id', 'validation_status'),
         'skill_dictionary.csv'),
 }
+# Registry includes job skill for existing lookup consumers; only location is built here.
+SHARED_SPECS = {'location': SPECS['location']}
 SCD_COLUMNS = ('valid_from', 'valid_to', 'is_current', 'effective_date_basis')
 
 
@@ -88,8 +90,126 @@ def version_key(spec: DimensionSpec, business_id: str, valid_from: date) -> str:
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
 
+REGIONS = ('Đồng bằng sông Hồng', 'Trung du và miền núi phía Bắc',
+           'Bắc Trung Bộ và duyên hải miền Trung', 'Tây Nguyên',
+           'Đông Nam Bộ', 'Đồng bằng sông Cửu Long')
+
+
+def location_normalize(value):
+    text = clean_text(value) or ''
+    return ''.join(c for c in unicodedata.normalize('NFD', text.lower().replace('đ', 'd'))
+                   if not unicodedata.combining(c))
+
+
+def location_row(raw):
+    identity = clean_text(raw.get('location_id'))
+    name = clean_text(raw.get('province_name') or raw.get('location_name'))
+    level = (clean_text(raw.get('location_level') or raw.get('location_type')) or 'PROVINCE').upper()
+    region = clean_text(raw.get('economic_region'))
+    if identity == 'COUNTRY_VN':
+        return dict(location_key=hashlib.sha256(b'S:10:COUNTRY_VN').hexdigest(), location_id=identity, location_code='VN', province_name='Cả nước', economic_region=None, location_name_normalized='ca nuoc', country_code='VN')
+    if not identity or identity == UNKNOWN_ID or not name or level not in {'PROVINCE', 'MUNICIPALITY', 'CITY', 'CAPITAL'}:
+        raise ValueError(f'Invalid province: {raw}')
+    if region not in REGIONS:
+        raise ValueError(f'Missing/invalid economic_region: {identity}')
+    return dict(location_key=hashlib.sha256(f'S:{len(identity)}:{identity}'.encode()).hexdigest(),
+                location_id=identity, location_code=clean_text(raw.get('location_code') or raw.get('province_code')),
+                province_name=name, economic_region=region,
+                location_name_normalized=location_normalize(name), country_code='VN')
+
+
+def validate_locations(rows, spec):
+    ids, keys = set(), set()
+    for row in rows:
+        if set(row) != {spec.key_column, spec.id_column, *spec.attributes}:
+            raise ValueError('Invalid location schema')
+        identity, key = row['location_id'], row['location_key']
+        if not identity or not key or identity in ids or key in keys:
+            raise ValueError('Duplicate/empty location ID or key')
+        if identity == UNKNOWN_ID:
+            if row != unknown_member(spec): raise ValueError('Invalid unknown location')
+        else:
+            expected = location_row(row)
+            if any(row[c] != expected[c] for c in spec.attributes) or key == UNKNOWN_KEY:
+                raise ValueError(f'Invalid province attributes/key: {identity}')
+        ids.add(identity); keys.add(key)
+    if UNKNOWN_ID not in ids: raise ValueError('Missing unknown location')
+
+
+def reconcile_locations(source, previous, spec):
+    if previous: validate_locations(previous, spec)
+    old = {r['location_id']: r for r in previous or []}
+    result = {**old, UNKNOWN_ID: unknown_member(spec)}
+    incoming = {}
+    for raw in source:
+        row = location_row(raw)
+        identity = row['location_id']
+        if identity in old: row['location_key'] = old[identity]['location_key']
+        if identity in incoming and incoming[identity] != row:
+            raise ValueError(f'Conflicting province: {identity}')
+        incoming[identity] = row
+        result[identity] = row
+    if len(result) == 1: raise ValueError('Empty province source')
+    rows = list(result.values())
+    validate_locations(rows, spec)
+    return rows
+
+
+COUNTRY_REGION_NAMES = {location_normalize(x) for x in (*REGIONS, 'Việt Nam', 'Vietnam', 'VN', 'Cả nước', 'Toàn quốc', 'Trung du và miền núi Bắc Bộ')}
+
+
+def aggregate_location(value):
+    text = clean_text(value) or ''
+    return text.upper().startswith(('REG_VN_', 'COUNTRY_')) or location_normalize(text) in COUNTRY_REGION_NAMES
+
+
+def silver_locations(spark, source, aliases_path, maximum):
+    from pyspark.sql import functions as F
+    candidates = [location_row(r) for r in source if not aggregate_location(r.get('location_id'))
+                  and not aggregate_location(r.get('province_name') or r.get('location_name'))
+                  and str(r.get('location_level') or r.get('location_type') or '').upper() not in ('REGION','COUNTRY')]
+    candidates.append(location_row({'location_id': 'COUNTRY_VN'}))
+    by_id = {r['location_id']: r for r in candidates}
+    if len(by_id) != len(candidates): raise ValueError('Duplicate location dictionary IDs')
+    lookup = {}
+    def add(value, identity):
+        if value: lookup.setdefault(location_normalize(value), set()).add(identity)
+    for r in candidates:
+        add(r['province_name'], r['location_id']); add(r['location_id'], r['location_id'])
+    for r in bounded_rows(spark.read.option('header',True).csv(aliases_path), maximum):
+        if str(r.get('requires_context','')).lower() in ('true','1','yes'): continue
+        if aggregate_location(r['location_id']): continue
+        if r['location_id'] not in by_id: raise ValueError(f'Orphan location alias: {r}')
+        add(r['alias'], r['location_id'])
+    if 'LOC_VN63_79' in by_id:
+        add('Thành phố Hồ Chí Minh','LOC_VN63_79'); add('TP. Hồ Chí Minh','LOC_VN63_79')
+    paths = [('delta','s3a://silver/education/universities','location_name'),
+             ('parquet','s3a://silver/jobs/current/job_locations.parquet','location_id')]
+    paths += [('delta',f's3a://silver/economic/{name}_statistics','location_id') for name in ('economic','labour','enterprise')]
+    selected, missing = set(), []
+    for fmt,path,col in paths:
+        if not hadoop_exists(spark,path):
+            LOG.warning('Silver input not available: %s',path); continue
+        frame = spark.read.format(fmt).load(path)
+        if col not in frame.columns: raise ValueError(f'Missing {col}: {path}')
+        for r in bounded_rows(frame.select(F.col(col).cast('string').alias('value')).distinct(),maximum):
+            value = clean_text(r['value'])
+            if value in (None, UNKNOWN_ID, UNKNOWN_KEY): continue
+            if aggregate_location(value) and value != 'COUNTRY_VN':
+                if '/economic/' in path: raise ValueError(f'Unsupported Economy location: {value}')
+                continue
+            matches = {value} if value in by_id else lookup.get(location_normalize(value),set())
+            if len(matches) != 1: missing.append((path,value,sorted(matches)))
+            else: selected.update(matches)
+    if missing: raise ValueError(f'Unmapped/ambiguous Silver provinces: {missing[:50]}')
+    if not selected: raise ValueError('No Silver provinces')
+    return [by_id[k] for k in sorted(by_id)]
+
+
 def unknown_member(spec: DimensionSpec) -> dict[str, Any]:
     row = {column: None for column in spec.attributes}
+    if spec.name == 'location':
+        return dict(row, location_id=UNKNOWN_ID, location_key=UNKNOWN_KEY, province_name='Không xác định', location_name_normalized='khong xac dinh', country_code='VN')
     row.update({spec.id_column: UNKNOWN_ID, spec.key_column: UNKNOWN_KEY,
                 spec.name_column: 'Không xác định', 'valid_from': UNKNOWN_START,
                 'valid_to': OPEN_END, 'is_current': True,
@@ -126,6 +246,8 @@ def same_attributes(left: Mapping[str, Any], right: Mapping[str, Any],
 
 def validate_dimension(rows: list[dict[str, Any]], spec: DimensionSpec) -> None:
     """Validate all history, including closed versions and the unknown row."""
+    if spec.name == 'location':
+        return validate_locations(rows, spec)
     grouped: dict[str, list[dict[str, Any]]] = {}
     keys: set[str] = set()
     for row in rows:
@@ -166,6 +288,8 @@ def reconcile_dimension(source: Iterable[Mapping[str, Any]],
                         previous: list[dict[str, Any]], spec: DimensionSpec,
                         as_of: date) -> list[dict[str, Any]]:
     """Pure, deterministic SCD2 reconciliation, also callable without Spark."""
+    if spec.name == 'location':
+        return reconcile_locations(source, previous, spec)
     if previous:
         validate_dimension(previous, spec)
     else:
@@ -257,6 +381,8 @@ def observed_date_rows(days: Iterable[date], academic_start_month: int = 9) -> l
         raise ValueError('Source dates must be date values before 9999-12-31')
     if not days:
         raise ValueError('No non-null dates in the configured sources; refusing to clear dim_date')
+    if UNKNOWN_START in days:
+        raise ValueError('1900-01-01 is reserved for unknown date')
     if len(days) > 100001:
         raise ValueError('More than 100001 distinct source dates; use a distributed reference pipeline')
     names = ('Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật')
@@ -290,12 +416,29 @@ def observed_date_rows(days: Iterable[date], academic_start_month: int = 9) -> l
     return rows
 
 
-def calendar_rows(start: date, end: date, academic_start_month: int = 9) -> list[dict[str, Any]]:
-    """Legacy helper for other modules; the shared Gold builder never calls it."""
-    if start > end or end >= OPEN_END or (end - start).days > 100000:
-        raise ValueError('Invalid legacy calendar range')
-    return observed_date_rows((start + timedelta(days=offset)
-                              for offset in range((end - start).days + 1)), academic_start_month)
+def observed_silver_dates(spark):
+    from pyspark.sql import functions as F
+    jobs = os.getenv('JOBS_SILVER_ROOT', 's3a://silver/jobs').rstrip('/')
+    edu = os.getenv('EDUCATION_SILVER_PREFIX', 's3a://silver/education').rstrip('/')
+    econ = os.getenv('ECONOMIC_SILVER_ROOT', 's3a://silver/economic').rstrip('/')
+    inputs = [('parquet', f'{jobs}/current/job_postings.parquet', ('posted_date', 'expiration_date'), False),
+              ('delta', f'{edu}/admission_announcements', ('announcement_date',), False)]
+    inputs += [('delta', f'{econ}/{name}_statistics', ('year',), True) for name in ('economic','labour','enterprise')]
+    days = set()
+    for fmt, path, columns, annual in inputs:
+        if not hadoop_exists(spark, path):
+            LOG.warning('Date source not available: %s', path)
+            continue
+        frame = spark.read.format(fmt).load(path)
+        for col in columns:
+            if col not in frame.columns:
+                raise ValueError(f'Missing {col}: {path}')
+            parsed = F.make_date(F.col(col).cast('int'), F.lit(1), F.lit(1)) if annual else F.expr(f'try_cast(`{col}` AS DATE)')
+            values = frame.select(F.col(col).alias('raw'), parsed.alias('day'))
+            if values.filter(F.col('raw').isNotNull() & F.col('day').isNull()).limit(1).count():
+                raise ValueError(f'Invalid date in {path}: {col}')
+            days.update(r['day'] for r in bounded_rows(values.select('day').where(F.col('day').isNotNull()).distinct(), 100001))
+    return days
 
 
 def make_spark(app_name: str = 'gold-shared-dimensions', use_s3: bool = True):
@@ -347,9 +490,9 @@ def dimension_schema(spec: DimensionSpec):
     return StructType([
         StructField(column, StringType(), True)
         for column in (spec.key_column, spec.id_column, *spec.attributes)
-    ] + [StructField('valid_from', DateType(), False), StructField('valid_to', DateType(), False),
+    ] + ([] if spec.name == 'location' else [StructField('valid_from', DateType(), False), StructField('valid_to', DateType(), False),
          StructField('is_current', BooleanType(), False),
-         StructField('effective_date_basis', StringType(), False)])
+         StructField('effective_date_basis', StringType(), False)]))
 
 
 def date_schema():
@@ -397,6 +540,8 @@ def read_catalog(spark, path: str, spec: DimensionSpec, source_format: str = 'au
     if spec.name == 'skill' and 'canonical_name' not in frame.columns and 'skill_name' in frame.columns:
         required.remove('canonical_name')
         required.add('skill_name')
+    if spec.name == 'location' and 'province_name' not in frame.columns and 'location_name' in frame.columns:
+        frame = frame.withColumnRenamed('location_name', 'province_name')
     missing = required - set(frame.columns)
     if missing:
         raise ValueError(f'{path}: missing required columns {sorted(missing)}')
@@ -404,14 +549,13 @@ def read_catalog(spark, path: str, spec: DimensionSpec, source_format: str = 'au
     if not isinstance(frame.schema[spec.id_column].dataType, StringType):
         raise ValueError(f'{path}: {spec.id_column} must be string to preserve business IDs')
     selected = [column for column in (*required, *spec.attributes,
-                'skill_name', 'valid_from', 'valid_to', 'is_current') if column in frame.columns]
+                'skill_name', 'province_code', 'location_type', 'location_level', 'valid_from', 'valid_to', 'is_current') if column in frame.columns]
     return frame.select(*dict.fromkeys(selected)).distinct()
 
 
 def merge_rows(spark, path: str, rows: list[dict[str, Any]], schema,
-               key_column: str, existing: list[dict[str, Any]] | None, *,
-               sync_calendar: bool = False) -> bool:
-    """Atomic merge. Only a deliberately synchronized calendar deletes keys."""
+               key_column: str, existing: list[dict[str, Any]] | None) -> bool:
+    """One atomic merge, skip exact no-op reruns. Never delete absent keys."""
     from delta.tables import DeltaTable
     from pyspark.sql import functions as F
     if existing is not None:
@@ -424,139 +568,10 @@ def merge_rows(spark, path: str, rows: list[dict[str, Any]], schema,
         frame.write.format('delta').mode('errorifexists').save(path)
     else:
         compare = ' OR '.join(f'NOT (t.`{c}` <=> s.`{c}`)' for c in frame.columns if c != key_column)
-        merge = (DeltaTable.forPath(spark, path).alias('t')
+        (DeltaTable.forPath(spark, path).alias('t')
             .merge(frame.alias('s'), F.col(f't.{key_column}') == F.col(f's.{key_column}'))
-            .whenMatchedUpdateAll(condition=compare).whenNotMatchedInsertAll())
-        if sync_calendar:
-            if key_column != 'date_key' or 0 not in after:
-                raise ValueError('Calendar synchronization requires date_key and unknown key 0')
-            merge = merge.whenNotMatchedBySourceDelete(condition='t.date_key <> 0')
-        merge.execute()
+            .whenMatchedUpdateAll(condition=compare).whenNotMatchedInsertAll().execute())
     return True
-
-
-def reconcile_observed_dates(previous: list[dict[str, Any]], days: Iterable[date],
-                             academic_start_month: int):
-    """Synchronize observed dates while preserving their YYYYMMDD keys."""
-    seen = set()
-    for row in previous:
-        key, day = row['date_key'], row['full_date']
-        if key in seen:
-            raise ValueError('dim_date: duplicate keys in existing table')
-        seen.add(key)
-        if key == 0:
-            # Older jobs used NULL for the unknown date. Migrate that row to
-            # the existing unknown convention without changing its key.
-            continue
-        if not isinstance(day, date) or isinstance(day, datetime):
-            raise ValueError('dim_date: invalid existing full_date')
-        if key != day.year * 10000 + day.month * 100 + day.day:
-            raise ValueError('dim_date: incompatible existing date_key; migrate explicitly')
-    rows = observed_date_rows(days, academic_start_month)
-    removed = sorted(seen - {row['date_key'] for row in rows} - {0})
-    return rows, removed
-
-
-def parse_date_sources(values: Iterable[str]) -> dict[str, tuple[str, ...]]:
-    """CLI form PATH::column1,column2; repeat for education/economy sources."""
-    result = {}
-    for value in values:
-        path, separator, raw_columns = value.rpartition('::')
-        columns = tuple(dict.fromkeys(column.strip() for column in raw_columns.split(',') if column.strip()))
-        if not separator or not path.strip() or not columns:
-            raise ValueError('Use --date-source "PATH::column1,column2"')
-        path = path.strip()
-        result[path] = tuple(dict.fromkeys((*result.get(path, ()), *columns)))
-    if not result:
-        raise ValueError('At least one date source with explicit column names is required')
-    return result
-
-
-def read_observed_dates(spark, sources: Mapping[str, Iterable[str]], source_format: str = 'auto'):
-    """Union distinct real dates. NULL/blank values do not create date members."""
-    from pyspark.sql import functions as F
-    combined = None
-    for path, columns in sources.items():
-        if not hadoop_exists(spark, path):
-            raise FileNotFoundError(f'Missing date source: {path}')
-        suffix = Path(urlparse(path).path).suffix.lower()
-        fmt = source_format if source_format != 'auto' else {
-            '.csv': 'csv', '.json': 'json', '.jsonl': 'json', '.parquet': 'parquet'
-        }.get(suffix)
-        if fmt is None:
-            fmt = 'delta' if hadoop_exists(spark, f'{path.rstrip("/")}/_delta_log') else 'parquet'
-        reader = spark.read.format(fmt)
-        if fmt == 'csv':
-            reader = (reader.option('header', 'true').option('encoding', 'UTF-8')
-                      .option('multiLine', 'true').option('escape', '"').option('mode', 'FAILFAST'))
-        frame = reader.load(path)
-        renamed = [column.lstrip('\ufeff').strip() for column in frame.columns]
-        if len(set(renamed)) != len(renamed):
-            raise ValueError(f'Duplicate headers in date source: {path}')
-        frame = frame.toDF(*renamed)
-        missing = set(columns) - set(frame.columns)
-        if missing:
-            raise ValueError(f'{path}: missing configured date columns {sorted(missing)}')
-        raw = frame.select(F.explode(F.array(*[
-            F.trim(F.col('`' + column.replace('`', '``') + '`').cast('string'))
-            for column in columns])).alias('_raw_date'))
-        parsed = raw.withColumn('full_date', F.to_date(F.col('_raw_date')))
-        invalid = parsed.filter(F.col('_raw_date').isNotNull() & (F.col('_raw_date') != '')
-                                & F.col('full_date').isNull()).limit(5).collect()
-        if invalid:
-            raise ValueError(f'{path}: invalid date values {[row["_raw_date"] for row in invalid]}; '
-                             'normalize dates in Silver before building Gold')
-        dates = parsed.filter(F.col('full_date').isNotNull()).select('full_date').distinct()
-        combined = dates if combined is None else combined.unionByName(dates)
-    if combined is None:
-        raise ValueError('No configured date sources')
-    records = bounded_rows(combined.distinct(), 100001)
-    return [row['full_date'] for row in records]
-
-
-def check_removed_date_references(spark, removed_keys: list[int], output_root: str,
-                                  extra_roots: Iterable[str] = ()) -> list[str]:
-    """Reject shrinking dates referenced by live date_key/*_date_key columns.
-
-    Standard sibling domains are scanned one level deep. Custom layouts must
-    supply their domain root or exact Delta table path as an extra root. Published
-    snapshots are independent datasets and are not rewritten by this job.
-    """
-    if not removed_keys:
-        return []
-    from delta.tables import DeltaTable
-    from pyspark.sql import functions as F
-    parent = output_root.rsplit('/', 1)[0]
-    roots = {f'{parent}/{name}' for name in ('jobs', 'education', 'economy', 'labor')}
-    roots.update(root.rstrip('/') for root in extra_roots)
-    removed = spark.createDataFrame([(key,) for key in removed_keys], '_removed_date_key long')
-    checked = []
-    for root in sorted(roots):
-        if not hadoop_exists(spark, root):
-            continue
-        if DeltaTable.isDeltaTable(spark, root):
-            paths = [root]
-        else:
-            jpath = spark._jvm.org.apache.hadoop.fs.Path(root)
-            fs = jpath.getFileSystem(spark._jsc.hadoopConfiguration())
-            paths = [item.getPath().toString() for item in fs.listStatus(jpath)
-                     if item.isDirectory() and not item.getPath().getName().startswith(('_', '.'))]
-        for path in sorted(paths):
-            if not DeltaTable.isDeltaTable(spark, path):
-                continue
-            frame = spark.read.format('delta').load(path)
-            columns = [column for column in frame.columns
-                       if column == 'date_key' or column.endswith('_date_key')]
-            for column in columns:
-                references = frame.select(F.col(f'`{column}`').cast('long').alias('_removed_date_key'))
-                sample = references.join(removed, '_removed_date_key', 'left_semi').limit(1).collect()
-                if sample:
-                    raise ValueError(f'Cannot shrink dim_date: {path}.{column} still references '
-                                     f'date_key={sample[0][0]}. Include all contributing date sources '
-                                     'or migrate dependent facts before retrying. No dimensions were written.')
-            if columns:
-                checked.append(path)
-    return sorted(set(checked))
 
 
 def attach_dimension_key(facts, dimension, name: str, source_id_column: str | None = None,
@@ -578,7 +593,9 @@ def attach_dimension_key(facts, dimension, name: str, source_id_column: str | No
     # when the same dimension is used in more than one role in a fact lineage.
     business_id = F.col(f'_dimension.`{spec.id_column}`')
     condition = F.col(f'_fact.`{source_id_column}`').cast('string') == business_id
-    if event_date_column:
+    if name == 'location':
+        pass
+    elif event_date_column:
         event = F.col(f'_fact.`{event_date_column}`').cast('date')
         condition = condition & (event >= F.col('_dimension.valid_from')) & (event < F.col('_dimension.valid_to'))
     else:
@@ -597,7 +614,7 @@ def attach_date_key(facts, dim_date, source_column: str, output_key: str):
     if output_key in facts.columns:
         raise ValueError(f'Output key already exists: {output_key}')
     left = facts.alias('_fact')
-    right = dim_date.filter(F.col('date_key') != 0).select(F.col('full_date').alias('_lookup_date'),
+    right = dim_date.select(F.col('full_date').alias('_lookup_date'),
                            F.col('date_key').alias('_lookup_key')).alias('_calendar')
     parsed = F.col(f'_fact.`{source_column}`').cast('date')
     joined = left.join(right, parsed == F.col('_calendar._lookup_date'), 'left')
@@ -606,42 +623,77 @@ def attach_date_key(facts, dim_date, source_column: str, output_key: str):
     return joined.select('_fact.*', F.coalesce(F.col('_calendar._lookup_key'), F.lit(0)).alias(output_key))
 
 
+def migrate_location_rows(rows, spec):
+    """Collapse legacy SCD2 to one current province, preserving its current key."""
+    selected = {}
+    for raw in rows:
+        identity = raw.get('location_id')
+        level = (clean_text(raw.get('location_level')) or '').upper()
+        if identity == UNKNOWN_ID or str(raw.get('location_key')) == UNKNOWN_KEY:
+            continue
+        if identity != 'COUNTRY_VN' and (level in ('REGION', 'COUNTRY') or aggregate_location(identity) or aggregate_location(raw.get('province_name') or raw.get('location_name'))):
+            continue
+        if 'is_current' in raw and parse_boolean(raw['is_current']) is not True:
+            continue
+        row = location_row(raw)
+        row['location_key'] = clean_text(raw.get('location_key'))
+        if not row['location_key'] or row['location_key'] == UNKNOWN_KEY:
+            raise ValueError(f'Invalid legacy location key: {identity}')
+        if identity in selected and selected[identity] != row:
+            raise ValueError(f'Multiple current legacy rows: {identity}')
+        selected[identity] = row
+    result = [unknown_member(spec), *selected.values()]
+    validate_locations(result, spec)
+    return result
+
+
+def previous_location_rows(spark,path,spec,maximum):
+    if not hadoop_exists(spark,path): return None, False
+    frame = spark.read.format('delta').load(path)
+    expected = set(dimension_schema(spec).fieldNames())
+    old = set(frame.columns)
+    if old == expected:
+        return bounded_rows(existing_delta(spark,path,dimension_schema(spec)),maximum), False
+    required = {'location_id','location_key','location_code','province_name','economic_region','location_name','location_level'}
+    allowed = expected | {'location_name','location_level','valid_from','valid_to','is_current','effective_date_basis'}
+    if not required <= old or not old <= allowed:
+        raise ValueError(f'Unexpected legacy location schema: {old}')
+    if old & {'valid_from','valid_to'} and 'is_current' not in old:
+        raise ValueError('Legacy SCD2 location has no is_current flag')
+    rows = bounded_rows(frame,maximum)
+    keep = migrate_location_rows(rows, spec)
+    retired = {str(r['location_key']) for r in rows} - {r['location_key'] for r in keep}
+    LOG.warning('Legacy dim_location migration: %d retired keys; review dependent facts before replacement. Sample: %s', len(retired), sorted(retired)[:20])
+    # Show the exact legacy records being excluded. This is read-only diagnostics;
+    # it does not authorize a migration or establish whether a Fact references them.
+    for raw in sorted(rows, key=lambda r: str(r.get('location_key') or '')):
+        if str(raw.get('location_key')) not in retired:
+            continue
+        LOG.warning(
+            'RETIRED LOCATION: location_key=%s | location_id=%s | province_name=%s | location_name=%s | location_level=%s | is_current=%s',
+            raw.get('location_key'), raw.get('location_id'), raw.get('province_name'),
+            raw.get('location_name'), raw.get('location_level'), raw.get('is_current')
+        )
+    return keep, True
+
+
 def build_shared_dimensions(spark=None, *, sources: Mapping[str, str] | None = None,
                             output_root: str | None = None, as_of: date | str | None = None,
-                            date_start: date | str | None = None,
+                            date_start: date | str = '2015-01-01',
                             date_end: date | str | None = None, academic_start_month: int = 9,
                             source_format: str = 'auto', max_reference_rows: int = 100000,
-                            dry_run: bool = False, sync_calendar: bool = True,
-                            date_reference_roots: Iterable[str] = (),
-                            date_sources: Mapping[str, Iterable[str]] | None = None,
-                            date_source_format: str = 'auto') -> dict[str, dict[str, Any]]:
+                            dry_run: bool = False, replace_shared: bool = False) -> dict[str, dict[str, Any]]:
     """Airflow-friendly entry point. An injected SparkSession is never stopped."""
     as_of = parse_date(as_of, 'as_of') or date.today()
-    if date_start is not None or date_end is not None:
-        LOG.warning('date_start/date_end are ignored: dim_date uses only dates present in date_sources')
-    if not sync_calendar:
-        raise ValueError('Observed-date mode requires synchronization; sync_calendar=False is unsupported')
-    if not date_sources:
-        raise ValueError('Provide date_sources={"Silver path": ["posted_date", "expiration_date"]}; '
-                         'automatic calendar generation is disabled')
-    normalized_sources = {}
-    for path, columns in date_sources.items():
-        if not isinstance(path, str) or not path.strip() or isinstance(columns, str):
-            raise ValueError('Each date source needs a nonempty path and a sequence of column names')
-        columns = tuple(columns)
-        if not columns or any(not isinstance(column, str) or not column.strip() for column in columns):
-            raise ValueError(f'{path}: nonempty date column names are required')
-        normalized_sources[path] = tuple(dict.fromkeys(column.strip() for column in columns))
-    date_sources = normalized_sources
+    # Legacy arguments retained for callers; actual dates are determined by Silver.
     if max_reference_rows < 1:
         raise ValueError('max_reference_rows must be positive')
     output_root = (output_root or os.getenv('SHARED_GOLD_ROOT', 's3a://gold/shared')).rstrip('/')
     mapping_root = os.getenv('SHARED_MAPPING_ROOT', '/opt/airflow/configs/mappings').rstrip('/')
-    sources = dict(sources or {name: f'{mapping_root}/{spec.filename}' for name, spec in SPECS.items()})
-    if set(sources) != set(SPECS):
-        raise ValueError(f'Exactly these catalog sources are required: {list(SPECS)}')
-    date_reference_roots = tuple(date_reference_roots)
-    paths = [output_root, *sources.values(), *date_reference_roots, *date_sources]
+    sources = dict(sources or {name: f'{mapping_root}/{spec.filename}' for name, spec in SHARED_SPECS.items()})
+    if set(sources) != set(SHARED_SPECS):
+        raise ValueError(f'Exactly the configured catalog sources are required: {list(SHARED_SPECS)}')
+    paths = [output_root, *sources.values()]
     if any(path.startswith('s3://') for path in paths):
         raise ValueError('Use s3a:// for Spark paths; s3:// is for Trino registration')
     owns_spark = spark is None
@@ -650,36 +702,65 @@ def build_shared_dimensions(spark=None, *, sources: Mapping[str, str] | None = N
         # Preflight every catalog and existing dimension BEFORE the first write.
         prepared: dict[str, tuple[list[dict], Any, str, list[dict] | None]] = {}
         report: dict[str, dict[str, Any]] = {}
-        for name, spec in SPECS.items():
+        migrations = {}
+        for name, spec in SHARED_SPECS.items():
             source = bounded_rows(read_catalog(spark, sources[name], spec, source_format), max_reference_rows)
+            if name == 'location':
+                source = silver_locations(spark, source, f'{mapping_root}/location_aliases.csv', max_reference_rows)
             path, schema = f'{output_root}/dim_{name}', dimension_schema(spec)
-            old_frame = existing_delta(spark, path, schema)
-            old = bounded_rows(old_frame, max_reference_rows) if old_frame is not None else None
+            old, migrations[name] = previous_location_rows(spark, path, spec, max_reference_rows)
             result = reconcile_dimension(source, old or [], spec, as_of)
             if len(result) > max_reference_rows:
                 raise ValueError(f'dim_{name}: history exceeds max_reference_rows')
             prepared[name] = result, schema, path, old
             report[f'dim_{name}'] = {'rows': len(result), 'path': path,
-                'current_members': sum(r['is_current'] for r in result) - 1}
-        observed_days = read_observed_dates(spark, date_sources, date_source_format)
+                'current_members': len(result) - 1 if name == 'location' else sum(r['is_current'] for r in result) - 1}
+        # Append-only calendar: preserve existing date rows and add only new dates.
+        observed_days = observed_silver_dates(spark)
         path, schema = f'{output_root}/dim_date', date_schema()
         old_frame = existing_delta(spark, path, schema)
         old_dates = bounded_rows(old_frame, 100002) if old_frame is not None else None
-        dates, removed = reconcile_observed_dates(old_dates or [], observed_days, academic_start_month)
-        checked = check_removed_date_references(spark, removed, output_root, date_reference_roots)
-        actual = [row['full_date'] for row in dates if row['date_key'] != 0]
+        if len({r['date_key'] for r in old_dates or []}) != len(old_dates or []):
+            raise ValueError('Duplicate existing date keys')
+        if old_dates is None:
+            dates = observed_date_rows(observed_days, academic_start_month)
+        else:
+            old_keys = {r['date_key'] for r in old_dates}
+            if 0 not in old_keys:
+                raise ValueError('Existing dim_date is missing unknown date_key=0')
+            new_days = {day for day in observed_days
+                        if day.year * 10000 + day.month * 100 + day.day not in old_keys}
+            additions = observed_date_rows(new_days, academic_start_month)[1:] if new_days else []
+            dates = [*old_dates, *additions]
+        actual = [r['full_date'] for r in dates if r['date_key'] != 0]
+        removed_dates = {r['date_key'] for r in old_dates or []} - {r['date_key'] for r in dates}
+        if removed_dates:
+            raise ValueError('Append-only dim_date unexpectedly removed existing dates')
         prepared['date'] = dates, schema, path, old_dates
         report['dim_date'] = {'rows': len(dates), 'path': path,
             'start': min(actual).isoformat() if actual else None,
-            'end': max(actual).isoformat() if actual else None,
-            'date_mode': 'observed', 'source_date_count': len(dates) - 1,
-            'date_sources': {path: list(columns) for path, columns in date_sources.items()},
-            'sync_calendar': sync_calendar, 'removed_date_keys': len(removed),
-            'checked_reference_tables': checked}
+            'end': max(actual).isoformat() if actual else None, 'removed_keys': 0}
+        for name, (rows, schema, path, previous) in prepared.items():
+            if name != 'location':
+                continue
+            removed = {r['location_key'] for r in previous or []} - {r['location_key'] for r in rows}
+            report['dim_location'].update(removed_province_keys=len(removed), schema_migration=migrations[name])
+            if not dry_run and not replace_shared and (removed or migrations[name]):
+                raise ValueError('Location replacement requires --replace-shared after reviewing dependent Gold facts')
         for name, (rows, schema, path, previous) in prepared.items():
             key = 'date_key' if name == 'date' else SPECS[name].key_column
-            changed = False if dry_run else merge_rows(spark, path, rows, schema, key, previous,
-                                                       sync_calendar=sync_calendar and name == 'date')
+            if dry_run:
+                changed = False
+            elif name == 'location':
+                changed = migrations[name] or {r[key]: r for r in rows} != {r[key]: r for r in previous or []}
+                if changed:
+                    spark.createDataFrame(rows, schema=schema).write.format('delta').mode(
+                        'overwrite' if previous is not None else 'errorifexists').option('overwriteSchema', 'true').save(path)
+            else:
+                changed = {r[key]: r for r in rows} != {r[key]: r for r in previous or []}
+                if changed:
+                    spark.createDataFrame(rows, schema=schema).write.format('delta').mode(
+                        'overwrite' if previous is not None else 'errorifexists').save(path)
             report[f'dim_{name}'].update(written=changed, dry_run=dry_run)
             LOG.info('%s: %s', f'dim_{name}', json.dumps(report[f'dim_{name}'], ensure_ascii=False))
         return report
@@ -691,32 +772,24 @@ def build_shared_dimensions(spark=None, *, sources: Mapping[str, str] | None = N
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mapping_root = os.getenv('SHARED_MAPPING_ROOT', '/opt/airflow/configs/mappings').rstrip('/')
-    for name, spec in SPECS.items():
+    for name, spec in SHARED_SPECS.items():
         parser.add_argument(f'--{name}-source', default=f'{mapping_root}/{spec.filename}')
     parser.add_argument('--output-root', default=os.getenv('SHARED_GOLD_ROOT', 's3a://gold/shared'))
     parser.add_argument('--as-of', default=date.today().isoformat())
-    parser.add_argument('--date-source', action='append', required=True,
-                        help='PATH::column1,column2; repeat for every contributing Silver source')
-    parser.add_argument('--date-source-format', choices=['auto', 'csv', 'json', 'parquet', 'delta'], default='auto')
-    parser.add_argument('--date-start', help='Deprecated and ignored; no date range is generated')
-    parser.add_argument('--date-end', help='Deprecated and ignored; no date range is generated')
-    parser.add_argument('--sync-calendar', action='store_true', default=True,
-                        help='Compatibility flag; observed-date synchronization is always enabled')
-    parser.add_argument('--date-reference-root', action='append', default=[],
-                        help='Additional Gold domain root or Delta table path to check before shrinking')
+    parser.add_argument('--date-start', default=os.getenv('SHARED_DATE_START', '2015-01-01'))
+    parser.add_argument('--date-end', default=os.getenv('SHARED_DATE_END'))
     parser.add_argument('--academic-start-month', type=int, default=9)
     parser.add_argument('--source-format', choices=['auto', 'csv', 'json', 'parquet', 'delta'], default='auto')
     parser.add_argument('--max-reference-rows', type=int, default=100000)
     parser.add_argument('--dry-run', action='store_true', help='Validate all inputs/targets; do not write')
+    parser.add_argument('--replace-shared', action='store_true', help='Allow location schema migration and removal of obsolete keys')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-    report = build_shared_dimensions(sources={name: getattr(args, f'{name}_source') for name in SPECS},
+    report = build_shared_dimensions(sources={name: getattr(args, f'{name}_source') for name in SHARED_SPECS},
         output_root=args.output_root, as_of=args.as_of, date_start=args.date_start,
         date_end=args.date_end, academic_start_month=args.academic_start_month,
         source_format=args.source_format, max_reference_rows=args.max_reference_rows,
-        dry_run=args.dry_run, sync_calendar=args.sync_calendar,
-        date_reference_roots=args.date_reference_root,
-        date_sources=parse_date_sources(args.date_source), date_source_format=args.date_source_format)
+        dry_run=args.dry_run, replace_shared=args.replace_shared)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 

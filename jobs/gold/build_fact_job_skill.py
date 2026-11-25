@@ -28,12 +28,6 @@ def fact_schema():
         T.StructField('skill_key', T.StringType(), True),
         T.StructField('date_key', T.IntegerType(), True),
         T.StructField('location_key', T.StringType(), True),
-        # T.StructField('occupation_key', T.StringType(), True),
-        # T.StructField('industry_key', T.StringType(), True),
-        # T.StructField('is_required', T.BooleanType(), True),
-        # T.StructField('required_level', T.StringType(), True),
-        # T.StructField('years_required', T.DecimalType(8, 2), True),
-        # T.StructField('confidence_score', T.DoubleType(), True),
         T.StructField('job_id', T.StringType(), True),
         T.StructField('skill_id', T.StringType(), True),
         T.StructField('reference_date', T.DateType(), True),
@@ -198,7 +192,6 @@ def desired_snapshot(spark, evidence, parent, dim_skill, old_child):
     contextual = contextual.select(*[F.col(f'e.{c}').alias(c) for c in PAIR_IDENTITIES],
         F.col('p.job_fact_key'), F.col('p.posted_date_key').alias('date_key'),
         F.col('p.location_key'),
-        # F.col('p.occupation_key'), F.col('p.industry_key'),
         F.col('p.reference_date'), F.col('p.skill_count_as_of').alias('skill_source_as_of'),
         F.when(F.col('p.dimension_date_policy') == 'posted', F.col('p.posted_date'))
          .otherwise(F.col('p.reference_date')).alias('_lookup_date'))
@@ -237,7 +230,7 @@ def synchronize(spark, path, desired, old, changes):
 
 
 def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold_root=None,
-                        reference_date=None, max_reference_rows=100000, dry_run=False):
+                        reference_date=None, max_reference_rows=100000, dry_run=False, replace_fact_schema=False):
     from pyspark import StorageLevel
     from pyspark.sql import functions as F
     silver_root = (silver_root or os.getenv('JOBS_SILVER_ROOT', 's3a://silver/jobs')).rstrip('/')
@@ -256,13 +249,14 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
             pinned[path] = version
             return frame
         dimensions = {}
-        for name, spec in shared.SPECS.items():
-            frame = load(f'{shared_root}/dim_{name}', shared.dimension_schema(spec))
+        for name, spec in {**shared.SHARED_SPECS, 'skill': shared.SPECS['skill']}.items():
+            root = gold_root if name == 'skill' else shared_root
+            frame = load(f'{root}/dim_{name}', shared.dimension_schema(spec))
             shared.validate_dimension(shared.bounded_rows(frame, max_reference_rows), spec)
             dimensions[name] = frame
         dimensions['date'] = load(f'{shared_root}/dim_date', shared.date_schema())
         jobs.unique(dimensions['date'], ['date_key'], 'dim_date')
-        if dimensions['date'].where('date_key = 0 AND full_date IS NULL').count() != 1:
+        if dimensions['date'].where((F.col('date_key') == 0) & (F.col('full_date') == F.lit(shared.UNKNOWN_START))).count() != 1:
             raise ValueError('dim_date must have one unknown date member')
         parent = load(f'{gold_root}/fact_job_posting')
         reference_date = validate_parent(parent, dimensions, reference_date)
@@ -271,7 +265,19 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
         cached.append(evidence)
         evidence.count()
         path = f'{gold_root}/fact_job_skill'
-        old = load(path, fact_schema(), optional=True)
+        old = load(path, optional=True)
+        schema_migration = False
+        if old is not None:
+            wanted = {f.name: f.dataType for f in fact_schema()}
+            actual = {f.name: f.dataType for f in old.schema}
+            removed = {'occupation_key', 'industry_key', 'is_required', 'required_level', 'years_required', 'confidence_score'}
+            if actual != wanted:
+                if set(actual) - set(wanted) != removed or any(actual.get(c) != t for c, t in wanted.items()):
+                    raise ValueError('Unsupported fact_job_skill schema migration')
+                schema_migration = True
+                old = old.select(*wanted)
+                if not dry_run and not replace_fact_schema:
+                    raise ValueError('Run with --replace-fact-schema to remove legacy columns')
         if old is not None:
             old = old.persist(StorageLevel.MEMORY_AND_DISK)
             cached.append(old)
@@ -289,14 +295,18 @@ def build_fact_job_skill(spark=None, *, silver_root=None, shared_root=None, gold
             # still must serialize writers: this is not a distributed lock.
             for input_path, version in pinned.items():
                 assert_version(spark, input_path, version)
-            written = synchronize(spark, path, desired, old, changes)
+            if schema_migration:
+                desired.write.format('delta').mode('overwrite').option('overwriteSchema', 'true').save(path)
+                written = True
+            else:
+                written = synchronize(spark, path, desired, old, changes)
         from delta.tables import DeltaTable
         output_version = (int(DeltaTable.forPath(spark, path).history(1).first()['version'])
                           if written else pinned[path])
         retained_jobs = parent.where(~F.col('seen_in_silver')).count()
-        report = {'table': 'gold_jobs.fact_job_skill', 'path': path, 'rows': rows,
+        report = {'table': 'delta.jobs.fact_job_skill', 'path': path, 'rows': rows,
             'reference_date': reference_date.isoformat(), 'retained_jobs': retained_jobs,
-            'changes': changes, 'written': written, 'dry_run': dry_run,
+            'changes': changes, 'schema_migration': schema_migration, 'written': written, 'dry_run': dry_run,
             'reconciliation': reconciliation['status'], 'output_version': output_version,
             'input_versions': {p: v for p, v in pinned.items() if p != path}}
         LOG.info('Job skill Gold: %s', json.dumps(report, ensure_ascii=False))
@@ -316,6 +326,7 @@ def main():
     parser.add_argument('--reference-date', help='Must equal parent snapshot date; inferred when omitted')
     parser.add_argument('--max-reference-rows', type=int, default=100000)
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--replace-fact-schema', action='store_true', help='Allow overwrite to remove the six legacy fact columns')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     print(json.dumps(build_fact_job_skill(**vars(args)), ensure_ascii=False, indent=2))
