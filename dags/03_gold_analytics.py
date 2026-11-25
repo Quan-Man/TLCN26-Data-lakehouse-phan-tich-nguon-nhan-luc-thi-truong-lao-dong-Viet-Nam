@@ -41,8 +41,6 @@ with DAG(
         ),
     )
 
-    build_shared_dimensions
-
     # JOBS GOLD
     # Build dim_skill, dim_company and fact_job_posting
     build_fact_job = BashOperator(
@@ -77,12 +75,14 @@ with DAG(
         ),
     )
 
-    # Jobs dependencies
-    build_fact_job >> [
-        build_job_skill,
-        build_bridge_job,
-    ]
-    
+    check_jobs_gold = BashOperator(
+        task_id="check_jobs_gold",
+        bash_command=(
+            "cd /opt/airflow && "
+            "python -m jobs.dq.check_jobs_gold"
+        ),
+    )
+
     # EDUCATION GOLD
     # Build Education dimensions and fact_admission
     build_education_gold = BashOperator(
@@ -100,13 +100,6 @@ with DAG(
             "cd /opt/airflow && "
             "python -m jobs.dq.check_education_gold"
         ),
-    )
-
-    # Education dependencies
-    (
-        register_shared_gold
-        >> build_education_gold
-        >> check_education_gold
     )
 
     # ECONOMY GOLD
@@ -128,12 +121,6 @@ with DAG(
         ),
     )
 
-    # Economy dependencies
-    (
-        build_economy_gold
-        >> check_economy_gold
-    )
-
     register_trino = BashOperator(
         task_id="register_trino",
         bash_command=(
@@ -142,4 +129,10 @@ with DAG(
         ),
     )
 
-    register_trino
+    (
+    build_shared_dimensions 
+    >> [build_fact_job, build_job_skill] >> build_bridge_job >> check_jobs_gold
+    >> build_education_gold >> check_education_gold
+    >> build_economy_gold >> check_economy_gold
+    >> register_trino
+    )
