@@ -1,0 +1,116 @@
+{
+  "check": "silver.jobs",
+  "engine": "pyspark",
+  "run_id": "4f5a0bdff9c143299a2c90ab77b7862d",
+  "silver_root": "s3://silver/jobs",
+  "started_at": "2026-11-26T05:21:52.044739+00:00",
+  "rows": {
+    "job_postings": 10716,
+    "companies": 3217,
+    "job_locations": 11641,
+    "job_skills": 44048
+  },
+  "coverage": {
+    "company": {
+      "numerator": 10716,
+      "denominator": 10716,
+      "ratio": 1.0
+    },
+    "location": {
+      "numerator": 9883,
+      "denominator": 10716,
+      "ratio": 0.9222657708100037
+    },
+    "skill": {
+      "numerator": 10089,
+      "denominator": 10716,
+      "ratio": 0.9414893617021277
+    }
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "COVERAGE_GAP",
+      "table": "job_postings",
+      "column": "location",
+      "count": 833,
+      "samples": []
+    },
+    {
+      "severity": "warning",
+      "code": "COVERAGE_GAP",
+      "table": "job_postings",
+      "column": "skill",
+      "count": 627,
+      "samples": []
+    },
+    {
+      "severity": "warning",
+      "code": "DUPLICATE_OBSERVATIONS",
+      "table": "",
+      "column": "",
+      "count": 12205,
+      "samples": []
+    },
+    {
+      "severity": "warning",
+      "code": "QUARANTINED_RECORDS",
+      "table": "",
+      "column": "",
+      "count": 1,
+      "samples": []
+    },
+    {
+      "severity": "warning",
+      "code": "SKILL_REQUIREMENT_UNKNOWN",
+      "table": "job_skills",
+      "column": "is_required",
+      "count": 44048,
+      "samples": []
+    }
+  ],
+  "snapshot_id": "20261126T051641_6250aa43a243",
+  "data_path": "current",
+  "format": "parquet",
+  "schema_source": "snapshot/schema.json",
+  "schema_sha256": "00a8515bb13afa7765994029406bad241fb763ced32b5e7fb9d9240798af1a06",
+  "extra_columns_policy": "allow producer columns beyond external schema; require every declared column",
+  "checks_policy": "JSON spark_schema/keys/FKs are enforced; prose checks are not executed as SQL. Business checks are explicit Python rules.",
+  "skills": {
+    "pairs": 44048,
+    "required_pairs": 0,
+    "jobs_with_required_skills": 0,
+    "unknown_required_pairs": 44048
+  },
+  "source_counts": {
+    "careerviet": 9053,
+    "timviec365": 1663
+  },
+  "salary_types": {
+    "RANGE": 5564,
+    "NEGOTIABLE": 3978,
+    "FIXED": 992,
+    "UNPARSED": 83,
+    "LOWER_BOUND": 99
+  },
+  "quality_flags": {
+    "INDUSTRY_UNRESOLVED": 10716,
+    "OCCUPATION_UNRESOLVED": 10716,
+    "SALARY_PARSED": 6738,
+    "WORKING_MODEL_UNKNOWN": 10716,
+    "EXPIRATION_DATE_PARSE_FAILED": 1646,
+    "SKILLS_NOT_PROVIDED": 2772,
+    "POSTED_DATE_MISSING": 425,
+    "LOCATION_UNRESOLVED": 161,
+    "SALARY_CURRENCY_INFERRED": 189,
+    "SALARY_NON_VND": 48,
+    "SALARY_UNPARSED": 35,
+    "EXPERIENCE_UNPARSED": 8,
+    "EDUCATION_UNMAPPED": 27
+  },
+  "error_count": 0,
+  "warning_count": 57714,
+  "status": "passed",
+  "finished_at": "2026-11-26T05:22:20.180714+00:00",
+  "report_path": "/opt/airflow/data/dq_reports/jobs_silver/4f5a0bdff9c143299a2c90ab77b7862d.json"
+}

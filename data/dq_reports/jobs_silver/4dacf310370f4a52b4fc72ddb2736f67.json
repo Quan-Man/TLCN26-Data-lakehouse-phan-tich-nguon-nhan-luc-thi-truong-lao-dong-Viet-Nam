@@ -1,0 +1,116 @@
+{
+  "check": "silver.jobs",
+  "engine": "pyspark",
+  "run_id": "4dacf310370f4a52b4fc72ddb2736f67",
+  "silver_root": "s3://silver/jobs",
+  "started_at": "2026-11-26T04:45:30.395379+00:00",
+  "rows": {
+    "job_postings": 10717,
+    "companies": 3217,
+    "job_locations": 11642,
+    "job_skills": 44052
+  },
+  "coverage": {
+    "company": {
+      "numerator": 10717,
+      "denominator": 10717,
+      "ratio": 1.0
+    },
+    "location": {
+      "numerator": 9884,
+      "denominator": 10717,
+      "ratio": 0.922273024167211
+    },
+    "skill": {
+      "numerator": 10090,
+      "denominator": 10717,
+      "ratio": 0.9414948213119343
+    }
+  },
+  "issues": [
+    {
+      "severity": "error",
+      "code": "EXPIRATION_BEFORE_POSTED",
+      "table": "job_postings",
+      "column": "",
+      "count": 1,
+      "samples": []
+    },
+    {
+      "severity": "warning",
+      "code": "COVERAGE_GAP",
+      "table": "job_postings",
+      "column": "location",
+      "count": 833,
+      "samples": []
+    },
+    {
+      "severity": "warning",
+      "code": "COVERAGE_GAP",
+      "table": "job_postings",
+      "column": "skill",
+      "count": 627,
+      "samples": []
+    },
+    {
+      "severity": "warning",
+      "code": "DUPLICATE_OBSERVATIONS",
+      "table": "",
+      "column": "",
+      "count": 12205,
+      "samples": []
+    },
+    {
+      "severity": "warning",
+      "code": "SKILL_REQUIREMENT_UNKNOWN",
+      "table": "job_skills",
+      "column": "is_required",
+      "count": 44052,
+      "samples": []
+    }
+  ],
+  "snapshot_id": "20261125T094734_6a0e007ff255",
+  "data_path": "current",
+  "format": "parquet",
+  "schema_source": "snapshot/schema.json",
+  "schema_sha256": "00a8515bb13afa7765994029406bad241fb763ced32b5e7fb9d9240798af1a06",
+  "extra_columns_policy": "allow producer columns beyond external schema; require every declared column",
+  "checks_policy": "JSON spark_schema/keys/FKs are enforced; prose checks are not executed as SQL. Business checks are explicit Python rules.",
+  "skills": {
+    "pairs": 44052,
+    "required_pairs": 0,
+    "jobs_with_required_skills": 0,
+    "unknown_required_pairs": 44052
+  },
+  "source_counts": {
+    "careerviet": 9053,
+    "timviec365": 1664
+  },
+  "salary_types": {
+    "RANGE": 5565,
+    "NEGOTIABLE": 3978,
+    "FIXED": 992,
+    "UNPARSED": 83,
+    "LOWER_BOUND": 99
+  },
+  "quality_flags": {
+    "INDUSTRY_UNRESOLVED": 10717,
+    "OCCUPATION_UNRESOLVED": 10717,
+    "SALARY_PARSED": 6739,
+    "WORKING_MODEL_UNKNOWN": 10717,
+    "EXPIRATION_DATE_PARSE_FAILED": 1646,
+    "SKILLS_NOT_PROVIDED": 2773,
+    "POSTED_DATE_MISSING": 425,
+    "LOCATION_UNRESOLVED": 161,
+    "SALARY_CURRENCY_INFERRED": 190,
+    "SALARY_NON_VND": 48,
+    "SALARY_UNPARSED": 35,
+    "EXPERIENCE_UNPARSED": 8,
+    "EDUCATION_UNMAPPED": 27
+  },
+  "error_count": 1,
+  "warning_count": 57717,
+  "status": "failed",
+  "finished_at": "2026-11-26T04:46:10.776039+00:00",
+  "report_path": "/opt/airflow/data/dq_reports/jobs_silver/4dacf310370f4a52b4fc72ddb2736f67.json"
+}

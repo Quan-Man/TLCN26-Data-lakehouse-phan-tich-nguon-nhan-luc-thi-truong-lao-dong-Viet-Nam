@@ -21,7 +21,7 @@ DEFAULT_ARGS = {
 }
 
 with DAG(
-    dag_id="04_gold_analytics",
+    dag_id="03_gold_analytics",
     description=(
         "Build Gold facts, dimensions and register analytics tables"
     ),
@@ -50,18 +50,23 @@ with DAG(
             "python -m jobs.gold.build_jobs_gold "
             f"--silver-root {JOBS_SILVER_ROOT} "
             f"--shared-root {SHARED_ROOT} "
-            f"--gold-root {JOBS_GOLD_ROOT} --no-bridges"
+            f"--gold-root {JOBS_GOLD_ROOT} "
+            "--no-bridges "
+            "--replace-fact-schema"
         ),
     )
+
 
     # Build fact_job_skill
     build_job_skill = BashOperator(
         task_id="build_job_skill",
         bash_command=(
             "cd /opt/airflow && "
-            "python -m jobs.gold.build_fact_job_skill"
+            "python -m jobs.gold.build_fact_job_skill "
+            "--replace-fact-schema"
         ),
     )
+
 
     # Build bridge_job_location
     build_bridge_job = BashOperator(

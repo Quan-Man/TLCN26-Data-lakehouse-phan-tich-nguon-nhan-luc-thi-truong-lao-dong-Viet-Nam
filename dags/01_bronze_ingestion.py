@@ -1,3 +1,4 @@
+
 from datetime import timedelta
 
 import pendulum
@@ -17,13 +18,14 @@ default_args = {
 
 with DAG(
     dag_id="01_bronze_ingestion",
-    description=("Raw to Bronze Lakehouse"),
+    description="Raw to Bronze Lakehouse",
     default_args=default_args,
     start_date=pendulum.datetime(2026, 9, 1, tz=LOCAL_TZ),
     schedule=None,
     catchup=False,
     max_active_runs=1,
 ) as dag:
+
     # JOBS BRONZE
     load_job_postings = BashOperator(
         task_id="load_job_postings",
@@ -55,17 +57,28 @@ with DAG(
         ),
     )
 
-    # 8. ECONOMY BRONZE
+    # ECONOMY BRONZE
     load_economic_labour_task = BashOperator(
         task_id="load_economic_labour",
         bash_command=(
             "cd /opt/airflow && "
             "python /opt/airflow/jobs/bronze/load_economic_labour.py "
             "--input-dir /opt/airflow/data/economy "
-            "--output s3a://bronze/economic"
+            "--output s3a://bronze/economic "
+            "--allow-production-overwrite"
         ),
+        env={
+            "ECONOMIC_PRODUCTION_OVERWRITE": "YES_I_HAVE_BACKUP",
+        },
+        append_env=True,
     )
 
-    (load_job_postings
-    >> [load_university_admissions_task, load_admission_dates_task]
-    >> load_economic_labour_task)
+    # DEPENDENCIES
+    (
+        load_job_postings
+        >> [
+            load_university_admissions_task,
+            load_admission_dates_task
+        ]
+        >> load_economic_labour_task
+    )
